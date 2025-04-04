@@ -88,3 +88,55 @@ class SinusoidalPositionEmbedding2d(nn.Module):
         )  # (1, C, H, W)
 
         return pos_embed
+
+
+class PositionalEncoding(nn.Module):
+    """Positional Encoding module for sequence data."""
+
+    def __init__(self, d_model: int, max_len: int = 5000):
+        """
+        Args:
+            d_model: Hidden dimensionality of the input.
+            max_len: Maximum length of a sequence to expect.
+        """
+        super().__init__()
+        self.d_model = d_model
+        self.max_len = max_len
+
+        # Create matrix of [SeqLen, HiddenDim] representing the positional encoding for max_len inputs
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
+        )
+
+        # Apply sin to even indices, cos to odd indices
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+
+        # Register positional encoding as a buffer to avoid making it a learnable parameter
+        self.register_buffer("pe", pe)
+
+    def forward(self, x):
+        """
+        Add positional encoding to the input tensor.
+
+        Args:
+            x: Input tensor of shape (B, T, D).
+
+        Returns:
+            Tensor with positional encodings added.
+        """
+        x = x + self.pe[: x.size(1), :].unsqueeze(0)
+        return x
+
+
+def get_pos_encoding(pos_enc_type, embedding_dim, max_len):
+    if pos_enc_type == "sine":
+        pos_embed = create_sinusoidal_pos_embedding(
+            num_positions=max_len, dimension=embedding_dim
+        )
+    elif pos_enc_type == "learned":
+        pos_embed = nn.Embedding(max_len, embedding_dim)
+
+    return pos_embed

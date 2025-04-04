@@ -91,7 +91,7 @@ class BCTrainer(OfflineTrainer):
         )
 
         if self.cfg.model.name not in POLICY_CLS_MAP:
-            raise ValueError(f"Unknown model {self.cfg.model.net.name}")
+            raise ValueError(f"Unknown model {self.cfg.model.name}")
 
         policy_cls = POLICY_CLS_MAP[self.cfg.model.name]
         model = policy_cls(

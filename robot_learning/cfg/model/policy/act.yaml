@@ -1,0 +1,62 @@
+encoder: ${policy_encoder}
+embedding_model: r3m
+resnet_feature_map_layer: layer4
+
+# ACT hyperparameters
+
+use_vae: False
+kl_weight: 0.001
+n_action_steps: ${data.seq_len}
+temporal_agg: False
+dropout: 0.1
+
+net:
+  name: act_transformer
+  image_obs: ${env.image_obs}
+  encoder:
+    n_encoder_layers: 3
+    dim_model: 512
+    n_layers: 3
+    n_heads: 4
+    dim_feedforward: 2048
+    dropout: ${..dropout}
+    feedforward_activation: gelu
+    pos_enc: learned
+    pre_norm: False
+
+  decoder:
+    n_decoder_layers: 3
+    dim_model: 512
+    n_layers: 3
+    n_heads: 4
+    dim_feedforward: 2048
+    dropout: ${..dropout}
+    feedforward_activation: gelu
+    pos_enc: learned
+    pre_norm: False
+    
+  vae_encoder:
+    n_encoder_layers: 3
+    dim_model: 512
+    n_layers: 3
+    n_heads: 4
+    dim_feedforward: 2048
+    dropout: ${..dropout}
+    feedforward_activation: gelu
+    pos_enc: learned
+    pre_norm: False
+
+  dim_model: 512
+  use_precomputed_img_embeds: ${..use_precomputed_img_embeds}
+  embedding_model: ${..embedding_model}
+  resnet_feature_map_layer: ${..resnet_feature_map_layer}
+
+  use_vae: ${..use_vae}
+  chunk_size: ${data.seq_len}
+  latent_dim: 32
+
+hp_name: kl-${.kl_weight}_cs-${.n_action_steps}_agg-${.temporal_agg}_vae-${.use_vae}
+
+defaults:
+  - bc_mlp
+  - _self_
