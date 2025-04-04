@@ -26,7 +26,7 @@ def make_mlp(
     net_kwargs: DictConfig,
     input_dim: int,
     output_dim: int = None,
-    activation: nn.Module = nn.LeakyReLU(0.2),
+    activation: nn.Module = nn.GELU(),
     use_batchnorm: bool = False,
 ):
     mlp = []
@@ -74,7 +74,7 @@ class ConvBlock(nn.Module):
         output_channel: int,
         batch_norm: bool = False,
         residual_layer: bool = False,
-        activation: nn.Module = nn.LeakyReLU(0.2),
+        activation: nn.Module = nn.GELU(),
         dropout: float = 0.0,
     ):
         super().__init__()
@@ -114,7 +114,7 @@ class ConvNet(nn.Module):
         self,
         input_dim: List[int],
         net_kwargs: Dict,
-        activation: nn.Module = nn.LeakyReLU(0.2),
+        activation: nn.Module = nn.GELU(),
         apply_output_head: bool = False,
         output_embedding_dim: int = None,
     ):
@@ -201,7 +201,7 @@ def make_conv_net(
     net_kwargs: DictConfig,
     output_embedding_dim: int,
     apply_output_head: bool = False,
-    activation: nn.Module = nn.LeakyReLU(0.2),
+    activation: nn.Module = nn.GELU(),
 ):
     log(
         f"Making conv net, input dim: {input_dim}, output dim: {output_embedding_dim}",
@@ -225,7 +225,7 @@ class ConvTransposeBlock(nn.Module):
         conv_kwargs: Dict,
         batch_norm: bool = False,
         residual_layer: bool = False,
-        activation: nn.Module = nn.LeakyReLU(0.2),
+        activation: nn.Module = nn.GELU(),
     ):
         super().__init__()
         self.conv = nn.ConvTranspose2d(**conv_kwargs)
@@ -259,7 +259,7 @@ class UpConvNet(nn.Module):
         output_channels: int,
         action_dim: int = None,
         state_dim: int = None,
-        activation: nn.Module = nn.LeakyReLU(0.2),
+        activation: nn.Module = nn.GELU(),
     ):
         super().__init__()
 
@@ -339,7 +339,7 @@ def make_upconv_net(
     net_kwargs: DictConfig,
     action_dim: int = None,
     state_dim: int = None,
-    activation: nn.Module = nn.LeakyReLU(0.2),
+    activation: nn.Module = nn.GELU(),
 ):
     log(
         f"Making upconv net, input dim: {input_dim}, output channels: {output_channels}",
@@ -399,7 +399,7 @@ def make_impala_cnn(
     input_dim: Tuple,
     output_embedding_dim: int,
     net_kwargs: DictConfig,
-    activation: nn.Module = nn.LeakyReLU(0.2),
+    activation: nn.Module = nn.GELU(),
 ):
     # channel must be first
     input_channel = input_dim[0]

@@ -45,14 +45,14 @@ class ActionHead(nn.Module):
             arm_output_size = self.arm_dim * 2 if self.gaussian_output else self.arm_dim
             self.arm_output = nn.Sequential(
                 nn.Linear(input_dim, input_dim),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(input_dim, arm_output_size),
             )
 
             # Gripper always uses deterministic output
             self.gripper_output = nn.Sequential(
                 nn.Linear(input_dim, input_dim),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(input_dim, self.gripper_dim),
             )
         else:
@@ -60,7 +60,7 @@ class ActionHead(nn.Module):
             output_size = output_dim * 2 if self.gaussian_output else output_dim
             self.output_layer = nn.Sequential(
                 nn.Linear(input_dim, input_dim),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(input_dim, output_size),
             )
 

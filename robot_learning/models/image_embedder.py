@@ -378,7 +378,7 @@ class MultiInputEmbedder(nn.Module):
         if "states" in input_modalities:
             state_embedder = nn.Sequential(
                 nn.Linear(state_dim * seq_len, cfg.embedding_dim),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
             )
             self.embedders["states"] = state_embedder
@@ -389,7 +389,7 @@ class MultiInputEmbedder(nn.Module):
                 nn.Linear(
                     EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
                 ),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
             )
             input_dim += cfg.embedding_dim
@@ -426,7 +426,7 @@ class MultiInputEmbedder(nn.Module):
 
         self.fusion_network = nn.Sequential(
             nn.Linear(input_dim, cfg.embedding_dim),
-            nn.LeakyReLU(0.2),
+            nn.GELU(),
             nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
         )
 
