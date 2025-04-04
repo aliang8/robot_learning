@@ -20,12 +20,12 @@ from huggingface_hub import PyTorchModelHubMixin
 from omegaconf import DictConfig
 from torch import Tensor, nn
 
-from clam.models.act.models import ACTDecoder, ACTEncoder
-from clam.models.act.utils import (
-    ACTSinusoidalPositionEmbedding2d,
+from robot_learning.models.image_embedder import EMBEDDING_DIMS
+from robot_learning.models.transformer import TransformerDecoder, TransformerEncoder
+from robot_learning.models.utils.transformer_utils import (
+    SinusoidalPositionEmbedding2d,
     create_sinusoidal_pos_embedding,
 )
-from clam.models.image_embedder import EMBEDDING_DIMS
 
 
 class ACTPolicy(nn.Module, PyTorchModelHubMixin):
@@ -207,7 +207,7 @@ class ACT(nn.Module):
         # The cls token forms parameters of the latent's distribution (like this [*means, *log_variances]).
         self.latent_dim = self.cfg.latent_dim
         if self.cfg.use_vae:
-            self.vae_encoder = ACTEncoder(self.cfg.vae_encoder)
+            self.vae_encoder = TransformerEncoder(self.cfg.vae_encoder)
             self.vae_encoder_cls_embed = nn.Embedding(1, self.cfg.dim_model)
             # Projection layer for joint-space configuration to hidden dimension.
             self.vae_encoder_robot_state_input_proj = nn.Linear(
@@ -234,8 +234,8 @@ class ACT(nn.Module):
             self.backbone = nn.Identity()
 
         # Transformer (acts as VAE decoder when training with the variational objective).
-        self.encoder = ACTEncoder(self.cfg.encoder)
-        self.decoder = ACTDecoder(self.cfg.decoder)
+        self.encoder = TransformerEncoder(self.cfg.encoder)
+        self.decoder = TransformerDecoder(self.cfg.decoder)
 
         # Transformer encoder input projections. The tokens will be structured like
         # [latent, robot_state, image_feature_map_pixels].
@@ -274,7 +274,7 @@ class ACT(nn.Module):
                 self.cfg.embedding_model == "resnet50"
                 and self.cfg.resnet_feature_map_layer == "layer4"
             ):
-                self.encoder_cam_feat_pos_embed = ACTSinusoidalPositionEmbedding2d(
+                self.encoder_cam_feat_pos_embed = SinusoidalPositionEmbedding2d(
                     self.cfg.dim_model // 2
                 )
             elif self.cfg.embedding_model == "r3m":
@@ -314,9 +314,9 @@ class ACT(nn.Module):
             latent dimension.
         """
         if self.cfg.use_vae and self.training:
-            assert (
-                actions is not None
-            ), "actions must be provided when using the variational objective in training mode."
+            assert actions is not None, (
+                "actions must be provided when using the variational objective in training mode."
+            )
 
         batch_size = states.shape[0]
 
