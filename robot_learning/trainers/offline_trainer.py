@@ -35,8 +35,6 @@ class OfflineTrainer(BaseTrainer):
 
         # set model to train
         self.model.train()
-        if hasattr(self, "action_decoder"):
-            self.action_decoder.train()
 
         train_iter = self.train_dataloader.repeat().as_numpy_iterator()
 
@@ -57,8 +55,6 @@ class OfflineTrainer(BaseTrainer):
             update_time = time.time()
 
             self.optimizer.zero_grad()
-            if hasattr(self, "action_decoder_optimizer"):
-                self.action_decoder_optimizer.zero_grad()
 
             if self.cfg.accelerate.use:
                 with self.accelerator.autocast():
@@ -70,14 +66,6 @@ class OfflineTrainer(BaseTrainer):
                     self.model.parameters(), self.cfg.clip_grad_norm
                 )
                 self.optimizer.step()
-
-                if hasattr(self, "action_decoder_optimizer") and (
-                    self.train_step % self.cfg.train_action_decoder_every == 0
-                ):
-                    self.accelerator.clip_grad_norm_(
-                        self.action_decoder.parameters(), self.cfg.clip_grad_norm
-                    )
-                    self.action_decoder_optimizer.step()
             else:
                 # Use autocast for mixed precision training
                 with torch.amp.autocast("cuda"):
@@ -93,40 +81,15 @@ class OfflineTrainer(BaseTrainer):
                 )
 
                 self.scaler.step(self.optimizer)
-
-                # Backward pass for action decoder
-                if (
-                    hasattr(self, "action_decoder_optimizer")
-                    and self.train_step % self.cfg.train_action_decoder_every == 0
-                ):
-                    self.scaler.unscale_(self.action_decoder_optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        self.action_decoder.parameters(),
-                        max_norm=self.cfg.clip_grad_norm,
-                    )
-                    self.scaler.step(self.action_decoder_optimizer)
-
                 self.scaler.update()
 
             # step the scheduler at the end of everything
             self.scheduler.step()
-
-            # step the action decoder scheduler, only if we are training the action decoder
-            if (
-                hasattr(self, "action_decoder_scheduler")
-                and self.train_step % self.cfg.train_action_decoder_every == 0
-            ):
-                self.action_decoder_scheduler.step()
-
             metrics["time/batch_load"] = batch_load_time
             metrics["time/update"] = time.time() - update_time
 
             # get lr
             metrics["lr"] = self.scheduler.get_last_lr()[0]
-
-            if hasattr(self, "action_decoder_scheduler"):
-                action_decoder_lr = self.action_decoder_scheduler.get_last_lr()[0]
-                metrics["action_decoder_lr"] = action_decoder_lr
 
             # Gather metrics from all processes if using DDP
             if self.distributed:
@@ -171,8 +134,6 @@ class OfflineTrainer(BaseTrainer):
 
                 # after eval set model back to train
                 self.model.train()
-                if hasattr(self, "action_decoder"):
-                    self.action_decoder.train()
 
         # final evaluation
         self.eval(step=self.cfg.num_updates)
@@ -201,8 +162,6 @@ class OfflineTrainer(BaseTrainer):
             )
 
             self.model.eval()
-            if hasattr(self, "action_decoder"):
-                self.action_decoder.eval()
 
             eval_time = time.time()
             eval_iter = self.eval_dataloader.as_numpy_iterator()
@@ -219,7 +178,7 @@ class OfflineTrainer(BaseTrainer):
                 count += 1
                 # put the batch on the device
                 batch = gutl.to_device(batch, self.device)
-                batch = Batch(**batch)
+                batch = Batch.create(**batch)
 
                 with torch.no_grad():
                     metrics, total_eval_loss = self.compute_loss(batch, train=False)
