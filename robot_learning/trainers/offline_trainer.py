@@ -50,7 +50,7 @@ class OfflineTrainer(BaseTrainer):
             batch = next(train_iter)
             # put the batch on the device
             batch = gutl.to_device(batch, self.device)
-            batch = Batch(**batch)
+            batch = Batch.create(**batch)
             batch_load_time = time.time() - batch_load_time
 
             # perform a single gradient step
