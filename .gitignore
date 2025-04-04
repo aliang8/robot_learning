@@ -1,0 +1,8 @@
+*.pyc
+*.pth
+*.pt
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.egg-info
