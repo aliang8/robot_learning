@@ -10,7 +10,7 @@ from PIL import Image
 from torchvision.models import ResNet50_Weights, resnet50
 from torchvision.models._utils import IntermediateLayerGetter
 
-from robot_learning.models.utils.transformer_utils import make_conv_net
+from robot_learning.models.utils.utils import make_conv_net
 from robot_learning.utils.logger import log
 
 try:

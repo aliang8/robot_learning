@@ -1,0 +1,29 @@
+name: null
+image_obs: ${env.image_obs}
+condition_on_task: False
+embedding_dim: 256
+
+gaussian_policy: False
+action_scale: ${env.action_scale}
+action_dim: ${env.action_dim}
+
+# set this if we want to use a pretrained vision model for the encoder
+# options: resnet18, ..., lapa, dynamo
+embedding_model: null
+embedding_model_ckpt: null
+embedding_model_id: null
+finetune_embedding_model: False
+
+seq_len: ${data.seq_len}
+action_activation: Tanh
+use_only_gripper_state: False
+
+use_separate_gripper: ${use_separate_gripper}
+arm_loss_weight: 1.0
+gripper_loss_weight: 1.0
+
+input_modalities:
+  - states
+
+defaults:
+  - _self_

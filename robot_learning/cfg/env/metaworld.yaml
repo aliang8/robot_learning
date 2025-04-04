@@ -1,0 +1,19 @@
+env_name: metaworld
+env_id: assembly
+image_obs: False
+
+# TODO: not used
+task_dim: 3
+max_episode_steps: 100
+state_dim: 39
+action_dim: 4
+# image_shape: [224, 224]
+image_shape: [84, 84]
+# image_shape: [64, 64]
+
+n_frame_stack: 1
+action_repeat: 2
+
+defaults:
+  - base
+  - _self_

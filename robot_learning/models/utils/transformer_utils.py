@@ -28,7 +28,7 @@ def create_sinusoidal_pos_embedding(num_positions: int, dimension: int) -> Tenso
     return torch.from_numpy(sinusoid_table).float()
 
 
-class ACTSinusoidalPositionEmbedding2d(nn.Module):
+class SinusoidalPositionEmbedding2d(nn.Module):
     """2D sinusoidal positional embeddings similar to what's presented in Attention Is All You Need.
 
     The variation is that the position indices are normalized in [0, 2π] (not quite: the lower bound is 1/H

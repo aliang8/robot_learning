@@ -1,0 +1,19 @@
+# @package encoder
+
+name: x_transformer
+
+wrapper_cfg:
+  max_seq_len: 1024
+  emb_dropout: 0.1
+  dim_in: 512
+  dim_out: 512
+  use_abs_pos_emb: True
+  post_emb_norm: True
+
+
+layer:
+  depth: 6
+  heads: 8
+  d_model: 512
+  dim: 512
+  ff_dropout: 0.1

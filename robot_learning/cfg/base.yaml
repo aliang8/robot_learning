@@ -1,0 +1,87 @@
+# @package _global_
+
+exp_dir: '' # gets set in the trainer
+run_id: "0000"
+
+seed: 521 # seed - set to -1 to choose random seed
+log_prefix: ""
+datetime: ${now:%Y-%m-%d}-${now:%H-%M-%S}
+
+# wandb config
+use_wandb: False
+wandb:
+  name: ${hp_name}
+  notes: ''
+  url: '' # gets set in the trainer
+  tags: 
+  - 'clam'
+  - '${run_id}'
+group_name: ''
+
+# evaluation
+eval_every: -1 
+log_terminal_every: 50_000 # number of update steps between logging to terminal
+save_every: 50_000
+num_evals: 10 # number of total evaluation steps to run
+disable_tqdm: False 
+run_eval_rollouts: False
+skip_first_eval: False 
+num_eval_rollouts: 40
+num_eval_rollouts_render: 2 
+log_rollout_videos: False
+video_fps: 20
+visualize_latent_space: False
+
+# total number of gradient updates
+num_updates: 400_000
+num_eval_steps: 500
+
+# resume training
+load_from_ckpt: False 
+ckpt_step: null # to be filled in
+ckpt_file: null # to be filled in
+mode: 'train'
+log_level: 'info'
+save_key: null
+best_metric: 'max'
+
+clip_grad_norm: 1.0
+
+# optimizer and scheduling
+optimizer:
+  name: 'AdamW'
+  params:
+    lr: 3e-4
+    eps: 1e-5
+    weight_decay: 1e-3
+    betas: [0.9, 0.999]
+  warmup_fraction: 0.1
+
+# lr scheduling
+# lr_scheduler:
+#   name: 'CosineAnnealingLR'
+#   params:
+#     T_max: ${num_updates}
+#     eta_min: 3e-5
+
+lr_scheduler:
+  name: 'ConstantLR'
+  params:
+    # factor: 1
+    verbose: False
+
+debug: False
+
+# config using huggingface accelerate for parallel training
+accelerate:
+  use: False
+  use_fp16: False
+
+defaults:
+  - env: metaworld
+  - data: base
+  - local: default
+  - hydra: default  # set the directory where the output files get saved
+  # - override hydra/hydra_logging: default
+  - override hydra/launcher: local
+  - _self_

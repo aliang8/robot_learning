@@ -1,0 +1,15 @@
+env_name: robot
+env_id: pick_up_bowl
+image_obs: True
+
+max_episode_steps: 200
+state_dim: 7
+action_dim: 7
+image_shape: [16, 16]
+
+n_frame_stack: 1 # preprocess the data to reflect this, but mostly for the policy architecture
+# action_repeat: 2
+
+defaults:
+  - base
+  - _self_

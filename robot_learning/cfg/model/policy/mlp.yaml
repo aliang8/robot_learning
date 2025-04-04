@@ -1,0 +1,11 @@
+name: mlp
+
+net:
+  hidden_dims: [1024, 1024]
+  dropout: 0.1
+
+hp_name: hd-${.net.hidden_dims}_d-${.net.dropout}
+
+defaults:
+  - policy_base
+  - _self_

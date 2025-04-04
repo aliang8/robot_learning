@@ -1,0 +1,6 @@
+# @package encoder
+
+name: soda
+arch: 'resnet18'
+feature_dim: 128
+cifar_small_image: True

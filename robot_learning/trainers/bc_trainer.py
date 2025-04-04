@@ -6,6 +6,7 @@ import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 
 from robot_learning.models.image_embedder import MultiInputEmbedder
+from robot_learning.models.lora import apply_lora
 from robot_learning.models.policy import POLICY_CLS_MAP
 from robot_learning.trainers.offline_trainer import OfflineTrainer
 from robot_learning.utils.logger import log
@@ -104,6 +105,14 @@ class BCTrainer(OfflineTrainer):
             cfg, ckpt = model.load_from_ckpt(
                 self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
             )
+
+        # Maybe apply lora here
+        # TODO: finish this
+        # apply_lora(
+        #     self.model.model,  # apply to just the transformer
+        #     lora_r=self.cfg.lora.r,
+        #     lora_alpha=self.cfg.lora.alpha,
+        # )
 
         return model
 

@@ -1,0 +1,11 @@
+# @package decoder
+
+name: soda
+image_shape: [3, 64, 64]
+n_channels: 128
+ch_mults: [1, 2, 2, 2]
+is_attn: [False, True, False, False]
+dropout: 0.1
+n_blocks: 2
+use_res_for_updown: False
+z_channels: ${clam_model.la_dim}
