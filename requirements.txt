@@ -1,0 +1,49 @@
+# math
+numpy==1.26.4
+scipy
+scikit-learn
+einops
+seaborn
+
+# Environment
+gym==0.23.1
+gymnasium
+
+tensorflow==2.15.1
+tensorflow-datasets
+rlds
+tensorflow_addons
+tensorflow_probability==0.23.0
+jaxtyping
+
+# Logging
+tqdm 
+wandb
+ipdb
+loguru
+absl-py
+dataclasses
+ml_collections
+
+# Formatting
+ruff
+
+# Config
+hydra-core
+omegaconf
+stable_baselines3
+
+# Training
+accelerate
+torchsummary
+
+# Data
+dm-reverb[tensorflow]
+tabulate
+vector_quantize_pytorch
+
+# Visualization
+pacmap
+matplotlib 
+opencv-python
+moviepy
