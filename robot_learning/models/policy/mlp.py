@@ -5,7 +5,7 @@ import torch.nn as nn
 from omegaconf import DictConfig
 
 from robot_learning.models.policy.base import BasePolicy
-from robot_learning.models.utils.utils import make_mlp
+from robot_learning.models.utils.transformer_utils import make_mlp
 
 
 class MLPPolicy(BasePolicy):
