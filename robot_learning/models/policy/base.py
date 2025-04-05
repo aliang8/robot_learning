@@ -120,7 +120,7 @@ class ActionHead(nn.Module):
                 )
 
             output = self.output_layer(x)
-            output = self._apply_activation(output)
+            output = self.action_activation(output)
             return ActionOutput(actions=output)
 
 
