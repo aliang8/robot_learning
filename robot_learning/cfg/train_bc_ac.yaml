@@ -1,0 +1,20 @@
+num_updates: 20_000
+log_terminal_every: 1000 
+run_eval_rollouts: False
+log_rollout_videos: False
+
+use_separate_gripper: True
+gripper_pos_weight: 0.1
+
+data: 
+  data_type: n_step
+  seq_len: 5  # chunk size to predict at once
+  batch_size: 64
+
+name: bc
+hp_name: bc_ac_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}
+
+defaults:
+  - base
+  - model/policy@model: ac_transformer
+  - _self_

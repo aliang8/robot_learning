@@ -200,7 +200,7 @@ def main(cfg):
             if imgs is not None:
                 camera_imgs[f"{camera_type}_images"] = imgs
             if embeddings is not None:
-                camera_embeddings[f"{camera_type}_embeds"] = embeddings
+                camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
 
         # Load metadata
         obs_dict = load_metadata(obs_dict_file[0])
