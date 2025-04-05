@@ -15,8 +15,7 @@ from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
 
 from robot_learning.data.dataclasses import Transition
-
-# from robot_learning.envs.utils import make_envs
+from robot_learning.envs.utils import make_envs
 from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
