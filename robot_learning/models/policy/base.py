@@ -68,7 +68,7 @@ class ActionHead(nn.Module):
             self.action_activation = getattr(nn, cfg.action_activation)()
             log(f"Using action activation: {cfg.action_activation}", "red")
         else:
-            self.action_activation = None
+            self.action_activation = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> ActionOutput:
         """

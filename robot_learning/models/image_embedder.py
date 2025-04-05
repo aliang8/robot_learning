@@ -426,11 +426,15 @@ class MultiInputEmbedder(nn.Module):
 
         self.embedders = nn.ModuleDict(self.embedders)
 
-        self.fusion_network = nn.Sequential(
-            nn.Linear(input_dim, cfg.embedding_dim),
-            nn.GELU(),
-            nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-        )
+        # if only one modality, no need for fusion
+        if len(self.input_modalities) == 1:
+            self.fusion_network = nn.Identity()
+        else:
+            self.fusion_network = nn.Sequential(
+                nn.Linear(input_dim, cfg.embedding_dim),
+                nn.GELU(),
+                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            )
 
         self.output_dim = cfg.embedding_dim
 
