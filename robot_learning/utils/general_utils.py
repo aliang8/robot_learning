@@ -1,12 +1,19 @@
 import collections
+import pickle as pkl
+import random
 from typing import Dict
 
+import blosc
 import numpy as np
 import torch
 from omegaconf import DictConfig
 
+from robot_learning.utils.logger import log
 
-def format_dict_keys(dictionary, format_fn):
+DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def format_dict_keys(diFctionary, format_fn):
     """Returns new dict with `format_fn` applied to keys in `dictionary`."""
     return collections.OrderedDict(
         [(format_fn(key), value) for key, value in dictionary.items()]
@@ -63,3 +70,31 @@ def to_numpy(x):
         return {k: v.cpu().detach().numpy() for k, v in x.items()}
     else:
         return x
+    
+
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+
+def count_params(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def get_data(path):
+    with open(path, "rb") as f:
+        data = pkl.loads(blosc.decompress(f.read()))
+
+    # return np.array(data) # TODO: cant do this right now since some 2D flow is dict
+    return data
+
+def save_data(path, data):
+    log(f"Saving to {path}", "yellow")
+    with open(path, "wb") as f:
+        compressed_data = blosc.compress(pkl.dumps(data))
+        f.write(compressed_data)

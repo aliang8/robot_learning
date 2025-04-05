@@ -31,7 +31,34 @@ def add_new_fields(x, cfg):
         # normalize by dividing by image size
         # TODO: do i need to account for the padding here?
         x["points"] = x["points"] / 84
+
+    x = del_keys(x)
+    
     return x
+
+def del_keys(x):
+    # TODO: for now just get rid of unused keys, taking a lot of time when moving device
+    del x["is_terminal"]
+    del x["is_last"]
+    del x["is_first"]
+
+    del x["mask"]
+    del x["scene_obs"]
+    del x["timestep"]
+
+    if "rewards" in x:
+        del x["rewards"]
+    if "images" in x:
+        del x["images"]
+    if "discount" in x:
+        del x["discount"]
+    if "flow" in x:
+        del x["flow"]
+    if "wrist_images" in x:
+        del x["wrist_images"]
+
+    return x
+
 
 
 def process_image(
@@ -67,6 +94,8 @@ def process_image(
 
 
 def process_state(x, cfg, env_name):
+    x["states"] = x["observations"]
+
     states = x["states"]
     has_framestack = len(states.shape) == 3
 
@@ -75,8 +104,8 @@ def process_state(x, cfg, env_name):
         states = states[:, -1]
 
     # for calvin, add scene_obs
-    if env_name == "calvin":
-        x["states"] = tf.concat([x["states"], x["scene_obs"]], axis=-1)
+    # if env_name == "calvin":
+    #     x["states"] = tf.concat([x["states"], x["scene_obs"]], axis=-1)
     return x
 
 
@@ -103,7 +132,7 @@ def process_dataset(
     """
     Applies transformations to base tfds such as batching, shuffling, etc.
     """
-    ds = ds.filter(filter_fn)
+    # ds = ds.filter(filter_fn)
 
     # caching the dataset makes it faster in the next iteration
     # ds = ds.cache()
@@ -116,24 +145,6 @@ def process_dataset(
     # limit the number of trajectories that we use
     ds = ds.take(cfg.num_trajs)
     log(f"\ttaking {cfg.num_trajs} trajectories")
-
-    # compute return of the trajectories
-    # TODO: commented this out because it was taking too long to run
-    # if "rewards" in ds.element_spec:
-    #     returns = list(
-    #         ds.map(
-    #             lambda episode: tf.reduce_sum(episode["rewards"])
-    #         ).as_numpy_iterator()
-    #     )
-    #     traj_lens = list(
-    #         ds.map(lambda episode: tf.shape(episode["rewards"])[0]).as_numpy_iterator()
-    #     )
-    #     if len(returns) > 0:
-    #         log(
-    #             f"\tN: {len(returns)} | Average return: {sum(returns) / len(returns)} | Max return: {max(returns)} | Min return: {min(returns)} | Average traj len: {sum(traj_lens) / len(traj_lens)}",
-    #             "yellow",
-    #         )
-    #     log("done with rewards", "yellow")
 
     ds = ds.map(partial(add_new_fields, cfg=cfg), num_parallel_calls=tf.data.AUTOTUNE)
     ds = ds.map(
@@ -208,6 +219,13 @@ def get_dataloader(
     """
     data_cfg = cfg.data
     data_dir = Path(data_cfg.data_dir) / "tensorflow_datasets"
+    
+    if cfg.retrieval:
+        if cfg.data.with_expert:
+            data_dir  = data_dir / "retrieved_dataset_expert"
+        else:
+            data_dir = data_dir / "retrieved_dataset"
+
     log(f"loading tfds dataset from: {data_dir}")
 
     env_id = cfg.env.env_id
@@ -223,7 +241,12 @@ def get_dataloader(
 
     total_trajs = 0
     ds_to_len = {}
-    for ds_name in dataset_names:
+    for i, ds_name in enumerate(dataset_names):
+
+        if cfg.retrieval:
+            ds_name = f"{cfg.method}/{ds_name}_N-{cfg.N}_K-{cfg.K}"
+            dataset_names[i] = ds_name
+
         save_file = data_dir / cfg.data.dataset_name / ds_name
         ds = tf.data.Dataset.load(str(save_file))
         log(f"\tdataset name: {ds_name}, num trajs: {len(ds)}")

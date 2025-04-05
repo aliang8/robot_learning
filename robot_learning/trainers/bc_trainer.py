@@ -1,12 +1,8 @@
-from pathlib import Path
 
-import einops
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig, OmegaConf
-
-from robot_learning.models.image_embedder import MultiInputEmbedder
-from robot_learning.models.lora import apply_lora
+from omegaconf import DictConfig
+from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.models.policy import POLICY_CLS_MAP
 from robot_learning.trainers.offline_trainer import OfflineTrainer
 from robot_learning.utils.logger import log
@@ -68,12 +64,13 @@ class BCTrainer(OfflineTrainer):
                 reduction="none", pos_weight=self.gripper_pos_weight
             )
 
+        # TODO: fix
         # create loss functions depending on configuration
-        if self.model.is_gaussian:
-            self.loss_fn = gaussian_nll_loss
-        else:
-            # self.loss_fn = nn.MSELoss(reduction="none")
-            self.loss_fn = nn.L1Loss(reduction="none")
+        # if self.model.is_gaussian:
+        #     self.loss_fn = gaussian_nll_loss
+        # else:
+        #     # self.loss_fn = nn.MSELoss(reduction="none")
+        self.loss_fn = nn.L1Loss(reduction="none")
 
     def setup_model(self, action_dim: int = None, action_activation: str = "Tanh"):
         # Input action dim in case we are doing CLAM policy training
@@ -82,16 +79,19 @@ class BCTrainer(OfflineTrainer):
         if self.cfg.model.use_only_gripper_state:
             state_dim = 4
 
-        embedder = MultiInputEmbedder(
-            cfg=self.cfg.model,
-            input_modalities=self.cfg.model.input_modalities,
-            state_dim=state_dim,
-            seq_len=self.cfg.data.seq_len if self.cfg.model.name == "mlp" else 1,
-            image_shape=(3, *self.cfg.env.image_shape),
-        )
+        # TODO: only using ImageEmbedder for calvin envs
+        # embedder = MultiInputEmbedder(
+        #     cfg=self.cfg.model,
+        #     input_modalities=self.cfg.model.input_modalities,
+        #     state_dim=state_dim,
+        #     seq_len=self.cfg.data.seq_len if self.cfg.model.name == "mlp" else 1,
+        #     image_shape=(3, *self.cfg.env.image_shape),
+        # )
+
+        embedder = ImageEmbedder(model_name=self.cfg.model.embedding_model)
 
         if self.cfg.model.name not in POLICY_CLS_MAP:
-            raise ValueError(f"Unknown model {self.cfg.model.net.name}")
+            raise ValueError(f"Unknown model {self.cfg.model.name}")
 
         policy_cls = POLICY_CLS_MAP[self.cfg.model.name]
         model = policy_cls(

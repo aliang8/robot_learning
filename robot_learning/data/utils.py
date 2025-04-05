@@ -3,31 +3,24 @@ from typing import Dict, List, Union
 
 import numpy as np
 import tensorflow as tf
-from clam.utils.logger import log
+
+from robot_learning.utils.logger import log
 
 # Base image sizes
 HALFCHEETAH_IMAGE_SIZE = (64, 64, 3)
 METAWORLD_IMAGE_SIZE = (84, 84, 3)
-MAX_QUERY_POINTS = 100
-
-# ROBOT_IMAGE_SIZE = (480, 640, 3) # OG image size
-ROBOT_IMAGE_SIZE = (128, 128, 3)
-ROBOT_DEPTH_IMAGE_SIZE = (128, 128)
-
+CALVIN_IMAGE_SIZE = (200, 200, 3)
+MAX_QUERY_POINTS = 40
 
 # Base feature specifications for different environments
 BASE_FEATURES = {
     "metaworld": {
-        "states": tf.TensorSpec(shape=(None, 39), dtype=np.float32),
+        "observations": tf.TensorSpec(shape=(None, 39), dtype=np.float32),
         "actions": tf.TensorSpec(shape=(None, 4), dtype=np.float32),
     },
     "halfcheetah": {
-        "states": tf.TensorSpec(shape=(None, 17), dtype=np.float32),
+        "observations": tf.TensorSpec(shape=(None, 17), dtype=np.float32),
         "actions": tf.TensorSpec(shape=(None, 6), dtype=np.float32),
-    },
-    "robot": {
-        "states": tf.TensorSpec(shape=(None, 7), dtype=np.float32),
-        "actions": tf.TensorSpec(shape=(None, 7), dtype=np.float32),
     },
     "calvin": {
         "observations": tf.TensorSpec(shape=(None, 15), dtype=np.float32),
@@ -52,9 +45,8 @@ def get_features_dict(
     framestack: int = 0,
     black_white: bool = False,
     has_flow: bool = False,
-    precompute_embeddings: bool = False,
-    camera_names: List[str] = [],
-    camera_embed_dims: List[int] = [],
+    save_costs: bool = False,
+    embedding_dim: Union[int, List[int]] = 2048,
 ) -> Dict:
     """Dynamically construct features dictionary based on available data.
 
@@ -63,8 +55,8 @@ def get_features_dict(
         save_imgs: Whether image data is included
         framestack: Number of frames to stack (if > 1)
         black_white: Whether images are grayscale
-        precompute_embeddings: Whether image embeddings are included
         has_flow: Whether optical flow features are included
+        emb_output_dim: Dimensionality of image embeddings
 
     Returns:
         Dictionary of TensorSpec features
@@ -74,64 +66,50 @@ def get_features_dict(
 
     # Add image features if needed
     if save_imgs:
-        if env_name == "robot":
-            for camera_name in camera_names:
-                if "depth" in camera_name:
-                    img_size = ROBOT_DEPTH_IMAGE_SIZE
-                else:
-                    img_size = ROBOT_IMAGE_SIZE
-
-                features[f"{camera_name}_imgs"] = tf.TensorSpec(
-                    shape=(None, *img_size), dtype=np.uint8
-                )
-
-            if precompute_embeddings:
-                # remove depth from camera_names
-                camera_names = [name for name in camera_names if "depth" not in name]
-                for camera_name, embed_dim in zip(camera_names, camera_embed_dims):
-                    if "depth" in camera_name:
-                        continue
-                    features[f"{camera_name}_img_embeds"] = tf.TensorSpec(
-                        shape=(None, embed_dim), dtype=np.float32
-                    )
+        if env_name == "calvin":
+            img_size = CALVIN_IMAGE_SIZE
         else:
-            if env_name == "halfcheetah":
-                img_size = HALFCHEETAH_IMAGE_SIZE
-            else:
-                img_size = METAWORLD_IMAGE_SIZE
+            raise ValueError(f"Unknown environment: {env_name}")
 
-            if framestack > 1:
-                if black_white:
-                    features["images"] = tf.TensorSpec(
-                        shape=(None, framestack, *img_size[:-1], 1),
-                        dtype=np.uint8,
-                    )
-                else:
-                    features["images"] = tf.TensorSpec(
-                        shape=(None, framestack, *img_size),
-                        dtype=np.uint8,
-                    )
-            else:
-                features["images"] = tf.TensorSpec(
-                    shape=(None, *img_size), dtype=np.uint8
-                )
-    # Add flow features if needed
-    if has_flow:
-        features.update(
-            {
-                "points": tf.TensorSpec(
-                    shape=(None, MAX_QUERY_POINTS, 2), dtype=np.float32
-                ),
-                "points_viz": tf.TensorSpec(
-                    shape=(None, MAX_QUERY_POINTS), dtype=np.uint8
-                ),
-                "points_mask": tf.TensorSpec(
-                    shape=(None, MAX_QUERY_POINTS), dtype=np.uint8
-                ),
-            }
+        features["images"] = tf.TensorSpec(
+            shape=(None, *img_size),
+            dtype=np.uint8,
         )
 
-    log(f"Features: {features}", "yellow")
+        features["wrist_images"] = tf.TensorSpec(
+            shape=(None, *img_size),
+            dtype=np.uint8,
+        )
+
+    # Add embedding features if needed
+    if save_imgs:
+        if isinstance(embedding_dim, int):
+            emb_shape = (
+                (None, framestack, embedding_dim)
+                if framestack > 1
+                else (None, embedding_dim)
+            )
+        else:
+            emb_shape = (
+                (None, framestack, *embedding_dim)
+                if framestack > 1
+                else (None, *embedding_dim)
+            )
+        features["image_embeddings"] = tf.TensorSpec(shape=emb_shape, dtype=np.float32)
+        features["wrist_image_embeddings"] = tf.TensorSpec(
+            shape=emb_shape, dtype=np.float32
+        )
+
+    if save_costs:
+        features["costs"] = tf.TensorSpec(shape=(None,), dtype=np.float32)
+
+    if has_flow:
+        features["flow"] = tf.TensorSpec(shape=(None, 2), dtype=np.float32)
+
+        features["gmflow"] = tf.TensorSpec(
+            shape=(None, *CALVIN_IMAGE_SIZE[:-1], 2), dtype=np.float32
+        )
+
     return features
 
 
@@ -142,10 +120,9 @@ def save_dataset(
     save_imgs: bool = False,
     framestack: int = 0,
     black_white: bool = False,
-    has_flow: bool = False,
-    precompute_embeddings: bool = False,
-    camera_names: List[str] = [],
-    camera_embed_dims: List[int] = [],
+    embedding_dim: int = None,
+    save_costs: bool = False,
+    save_flow: bool = False,
 ):
     """Save trajectory data as a TensorFlow dataset.
 
@@ -166,13 +143,12 @@ def save_dataset(
         save_imgs=save_imgs,
         framestack=framestack,
         black_white=black_white,
-        has_flow=has_flow,
-        camera_names=camera_names,
-        camera_embed_dims=camera_embed_dims,
-        precompute_embeddings=precompute_embeddings,
+        embedding_dim=embedding_dim,
+        save_costs=save_costs,
+        has_flow=save_flow,
     )
 
     trajectory_tfds = tf.data.Dataset.from_generator(
         generator, output_signature=features_dict
     )
-    tf.data.Dataset.save(trajectory_tfds, str(save_file))
+    tf.data.experimental.save(trajectory_tfds, str(save_file))

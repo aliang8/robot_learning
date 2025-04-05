@@ -1,13 +1,9 @@
-import math
-from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from robot_learning.models.utils.utils import get_activation_fn
 from torch import Tensor, nn
-
-from robot_learning.models.utils.transformer_utils import get_activation_fn
-from robot_learning.utils.logger import log
 
 
 class TransformerEncoder(nn.Module):

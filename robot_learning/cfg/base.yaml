@@ -78,7 +78,8 @@ accelerate:
   use_fp16: False
 
 defaults:
-  - env: metaworld
+  # - env: metaworld
+  - env: calvin
   - data: base
   - local: default
   - hydra: default  # set the directory where the output files get saved
