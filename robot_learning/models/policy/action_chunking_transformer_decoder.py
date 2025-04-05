@@ -138,9 +138,9 @@ class ActionChunkingTransformerPolicy(BasePolicy):
             num_layers=cfg.num_layers,
             norm=nn.LayerNorm(cfg.d_model),
         )
-        self.positional_encoding = get_pos_encoding(
-            cfg.pos_enc, embedding_dim=cfg.d_model, max_len=200
-        )
+        # self.positional_encoding = get_pos_encoding(
+        #     cfg.pos_enc, embedding_dim=cfg.d_model, max_len=200
+        # )
         self.decoder_pos_encoding = get_pos_encoding(
             cfg.pos_enc, embedding_dim=cfg.d_model, max_len=200
         )
@@ -162,14 +162,14 @@ class ActionChunkingTransformerPolicy(BasePolicy):
 
         # Get embeddings for each input and then predict a sequence of actions
         embeddings = self.embedder(embed_inputs)
-        embeddings = einops.repeat(embeddings, "B E -> B T E", T=self.cfg.seq_len)
+        # embeddings = einops.repeat(embeddings, "B E -> B T E", T=self.cfg.seq_len)
 
-        # Pass through the transformer decoder repeated for each timestep
-        # pos_encoding = self.positional_encoding(inputs["timesteps"])
-        pos_encoding = self.positional_encoding.weight[: self.cfg.seq_len].unsqueeze(0)
+        # # Pass through the transformer decoder repeated for each timestep
+        # # pos_encoding = self.positional_encoding(inputs["timesteps"])
+        # pos_encoding = self.positional_encoding.weight[: self.cfg.seq_len].unsqueeze(0)
 
         # [B, T, E]
-        memory = embeddings + pos_encoding
+        # memory = embeddings + pos_encoding
 
         # create dummy actions to use as query for the transformer decoder
         B = embeddings.shape[0]
@@ -192,7 +192,7 @@ class ActionChunkingTransformerPolicy(BasePolicy):
         # [B, T, E] -> [B, T, E]
         output = self.transformer_decoder(
             tgt=action_embeddings,
-            memory=memory,
+            memory=embeddings.unsqueeze(1),
             # tgt_mask=tgt_mask,
             # tgt_is_causal=True,
         )

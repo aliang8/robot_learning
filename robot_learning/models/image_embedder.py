@@ -385,14 +385,16 @@ class MultiInputEmbedder(nn.Module):
             input_dim += cfg.embedding_dim
 
         for modality in embed_modalities:
-            self.embedders[modality] = nn.Sequential(
-                nn.Linear(
-                    EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
-                ),
-                nn.GELU(),
-                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-            )
-            input_dim += cfg.embedding_dim
+            # self.embedders[modality] = nn.Sequential(
+            #     nn.Linear(
+            #         EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
+            #     ),
+            #     nn.GELU(),
+            #     nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            # )
+            self.embedders[modality] = nn.Identity()
+            # input_dim += cfg.embedding_dim
+            input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
             # Create custom conv network to embed the images
