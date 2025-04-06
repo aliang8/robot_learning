@@ -345,15 +345,18 @@ def run_eval_rollout(
                 actions = to_numpy(actions).squeeze()
                 actions_list.append(actions)  # Store action
 
+            fps = 10  # 10 hz control loop
+            sleep_time = 1 / fps
             if model_cfg.data.seq_len > 1:
                 if cfg.use_temporal_ensembling:
                     widowx_client.step_action(action)
+                    time.sleep(sleep_time - inference_time)
                 else:
                     # Open loop execution for action chunking
                     for i in range(model_cfg.data.seq_len // 2):
                         action = actions[i]
                         widowx_client.step_action(action)
-                        time.sleep(0.1 - inference_time)  # 10Hz control loop
+                        time.sleep(sleep_time - inference_time)
             else:
                 widowx_client.step_action(actions)
 
