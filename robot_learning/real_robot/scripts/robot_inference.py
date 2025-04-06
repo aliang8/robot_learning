@@ -5,10 +5,8 @@ import argparse
 import pickle as pkl
 import queue
 import sys
-import termios
 import threading
 import time
-import tty
 from collections import defaultdict, deque, namedtuple
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -25,6 +23,11 @@ from edgeml.action import ActionClient, ActionConfig, ActionServer
 from edgeml.internal.utils import compute_hash, jpeg_to_mat, mat_to_jpeg
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
+from pynput import keyboard
+from widowx_envs.utils.exceptions import Environment_Exception
+from widowx_envs.utils.raw_saver import RawSaver
+from widowx_envs.widowx_env_service import WidowXClient, WidowXStatus, show_video
+
 from robot_learning.models.image_embedder import EMBEDDING_DIMS, ImageEmbedder
 from robot_learning.models.policy.action_chunking_transformer_decoder import (
     ActionChunkingTransformerPolicy,
@@ -33,9 +36,34 @@ from robot_learning.models.policy.action_chunking_transformer_decoder import (
 from robot_learning.trainers import trainer_to_cls
 from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
-from widowx_envs.utils.exceptions import Environment_Exception
-from widowx_envs.utils.raw_saver import RawSaver
-from widowx_envs.widowx_env_service import WidowXClient, WidowXStatus, show_video
+
+# Add after other global variables
+key_pressed = None
+
+
+def on_press(key):
+    """Callback for key press events"""
+    global key_pressed
+    try:
+        if key.char.lower() in ["r", "s"]:
+            key_pressed = key.char.lower()
+    except AttributeError:
+        pass
+
+
+def on_release(key):
+    """Callback for key release events"""
+    global key_pressed
+    key_pressed = None
+
+
+def check_key_press() -> Optional[str]:
+    """
+    Check for 'R' or 'S' key press without blocking.
+    Returns: 'r', 's', or None
+    """
+    global key_pressed
+    return key_pressed
 
 
 class WidowXConfigs:
@@ -175,45 +203,6 @@ def collect_trajectory_data(
     return agent_data, obs_dict
 
 
-def get_key_async(key_queue: queue.Queue, stop_event: threading.Event):
-    """Monitors keyboard input in a separate thread."""
-
-    def _get_key():
-        fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
-        try:
-            tty.setraw(sys.stdin.fileno())
-            ch = sys.stdin.read(1)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        return ch
-
-    while not stop_event.is_set():
-        key = _get_key()
-        key_queue.put(key)
-        if key == "\x03":  # Ctrl+C
-            break
-
-
-def wait_for_key(
-    key_queue: queue.Queue, target_key: Optional[str] = None
-) -> Optional[str]:
-    """Check for a specific key press without blocking.
-
-    Args:
-        key_queue: Queue containing keyboard inputs
-        target_key: If specified, only return if this key is pressed. If None, return any key.
-    """
-    try:
-        while not key_queue.empty():
-            key = key_queue.get_nowait()
-            if target_key is None or key.lower() == target_key:
-                return key
-    except queue.Empty:
-        pass
-    return None
-
-
 def run_eval_rollout(
     cfg: DictConfig,
     widowx_client: WidowXClient,
@@ -233,26 +222,15 @@ def run_eval_rollout(
     log(f"Observation keys: {obs.keys()}", "blue")
     log("✓ Robot reset complete", "green")
 
-    # Make sure we're in normal terminal mode for input
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
     try:
         input("Press [Enter] to start this episode...")
     except Exception as e:
         print(f"Input error: {e}")
-        # Ensure terminal is reset even if input fails
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         raise
 
-    # Initialize keyboard monitoring
-    key_queue = queue.Queue()
-    stop_event = threading.Event()
-    keyboard_thread = threading.Thread(
-        target=get_key_async, args=(key_queue, stop_event), daemon=True
-    )
-    keyboard_thread.start()
+    # Setup keyboard listener
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    listener.start()
 
     if model_cfg.model.name == "ac_decoder":
         temporal_ensembler = ACTTemporalEnsembler(
@@ -288,27 +266,25 @@ def run_eval_rollout(
         # Run episode
         episode_start = time.time()
         for timestep in range(max_steps):
-            # Check for key presses
-            key = wait_for_key(key_queue, target_key=None)  # Check for any key
-            if key:
-                if key.lower() == "r":
-                    log("\n⚠️ Reset requested by user", "yellow")
-                    widowx_client.reset()
-                    wait_for_observation(widowx_client)
-                    return obs_list, actions_list, False, "Reset requested by user"
-                elif key.lower() == "s":
-                    log("\n💾 Save and continue requested by user", "yellow")
-                    return obs_list, actions_list, True, "Saved mid-trajectory by user"
+            # Check for key press
+            key = check_key_press()
+            if key == "r":
+                log("\nReset requested by user", "yellow")
+                widowx_client.reset()
+                wait_for_observation(widowx_client)
+                return obs_list, actions_list, False, "Reset requested by user"
+            elif key == "s":
+                log("\nSave and continue requested by user", "yellow")
+                return obs_list, actions_list, True, "Saved mid-trajectory by user"
 
             obs = wait_for_observation(widowx_client)
-            obs_list.append(obs)  # Store observation
+            obs_list.append(obs)
 
             log(
                 f"""
                     Step {timestep + 1}/{max_steps}:
                     • Episode Time: {time.time() - episode_start:.1f}s
                     • Robot State: {np.array2string(obs["state"], precision=3, suppress_small=True)}
-                    • Controls: [R]eset trajectory, [S]ave and continue
                 """,
                 "blue",
             )
@@ -384,18 +360,15 @@ def run_eval_rollout(
         # Get feedback after episode
         log("\nEpisode complete! Collecting feedback...", "yellow")
 
-        # Restore normal terminal mode for feedback
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        # Cleanup keyboard listener before getting feedback
+        listener.stop()
         success, notes = get_user_feedback()
 
         return obs_list, actions_list, success, notes
 
     finally:
-        # Clean up keyboard thread
-        stop_event.set()
-        keyboard_thread.join(timeout=0.1)
-        # Ensure terminal is reset to normal mode
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        # Clean up keyboard listener
+        listener.stop()
 
 
 @hydra.main(version_base=None, config_name="robot_inference", config_path="../cfg")
@@ -440,7 +413,6 @@ def main(cfg: DictConfig) -> None:
         img_embedder = ImageEmbedder(
             model_name=model_cfg.model.embedding_model, device=device
         )
-        image_embedding_dim = EMBEDDING_DIMS[model_cfg.model.embedding_model]
 
     # Map modalities to observation keys
     modality_mapping = {
@@ -457,15 +429,8 @@ def main(cfg: DictConfig) -> None:
         successes = 0
         resets = 0
 
-        # Store original terminal settings
-        fd = sys.stdin.fileno()
-        original_settings = termios.tcgetattr(fd)
-
         while True:  # Run indefinitely until keyboard interrupt
             try:
-                # Ensure terminal is in normal mode at the start of each episode
-                termios.tcsetattr(fd, termios.TCSADRAIN, original_settings)
-
                 episode += 1
                 episode_start = time.time()
 
@@ -487,8 +452,6 @@ def main(cfg: DictConfig) -> None:
                 if notes == "Reset requested by user":
                     resets += 1
                     log(f"Manual resets: {resets}", "yellow")
-                    # Ensure terminal is reset after a manual reset
-                    termios.tcsetattr(fd, termios.TCSADRAIN, original_settings)
                     continue
 
                 total_timesteps += len(obs_list)
@@ -522,8 +485,6 @@ def main(cfg: DictConfig) -> None:
 
             except Exception as e:
                 log(f"Episode error: {e}", "red")
-                # Ensure terminal is reset even if episode fails
-                termios.tcsetattr(fd, termios.TCSADRAIN, original_settings)
                 raise
 
     except KeyboardInterrupt:
@@ -532,8 +493,6 @@ def main(cfg: DictConfig) -> None:
         log(f"❌ Error occurred: {str(e)}", "red")
         raise
     finally:
-        # Ensure terminal is reset at program exit
-        termios.tcsetattr(fd, termios.TCSADRAIN, original_settings)
         # Save experiment metadata
         metadata = {
             "total_episodes": episode,
