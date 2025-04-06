@@ -140,7 +140,13 @@ class BCTrainer(OfflineTrainer):
         model_inputs["states"] = states
         model_inputs["timesteps"] = batch.timestep
 
-        action_preds = self.model(model_inputs)
+        # TODO:
+        # action_preds = self.model(model_inputs)
+
+        model_inputs["actions"] = batch.actions
+        model_inputs["image_embeddings"] = batch.image_embeddings
+
+        metrics = self.model(model_inputs)
 
         if self.use_separate_gripper:
             # Split predictions and targets into arm and gripper components
@@ -201,18 +207,23 @@ class BCTrainer(OfflineTrainer):
                 metrics["gripper_accuracy"] = gripper_acc.item()
 
         else:
+            # TODO:
             # Use single loss function for all dimensions
-            if self.model.is_gaussian:
-                loss = self.loss_fn(
-                    batch.actions,
-                    action_preds.mean,
-                    action_preds.logvar,
-                    reduction="mean",
-                )
-            else:
-                loss = self.loss_fn(action_preds.actions, batch.actions)
-                loss = loss.mean()
+            # if self.model.is_gaussian:
+            #     loss = self.loss_fn(
+            #         batch.actions,
+            #         action_preds.mean,
+            #         action_preds.logvar,
+            #         reduction="mean",
+            #     )
+            # else:
+            #     loss = self.loss_fn(action_preds.actions, batch.actions)
+            #     loss = loss.mean()
+
+            loss = metrics["loss"]
 
             metrics["loss"] = loss.item()
+
+            
 
         return metrics, loss

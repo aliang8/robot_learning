@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from itertools import repeat
 from typing import Dict
 
 import numpy as np
@@ -36,6 +35,7 @@ class Batch:
     states: BTX
     actions: BT
     rewards: BT = None
+    observations: BTX = None
     next_observations: np.ndarray = None
     dones: np.ndarray = None
     tasks: np.ndarray = None
@@ -50,6 +50,7 @@ class Batch:
     is_terminal: BT = None
     discount: BT = None
     images: BTHWC = None
+    image_embeddings: BT = None
     embeddings: BT = None
     env_state: np.ndarray = None
     points: np.ndarray = None
@@ -62,3 +63,6 @@ class Batch:
     external_img_embeds: BT = None
     over_shoulder_img_embeds: BT = None
     wrist_img_embeds: BT = None
+    wrist_image_embeddings: BTX = None
+    costs: BT = None
+    gmflow: BTHWC = None

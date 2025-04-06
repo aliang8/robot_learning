@@ -7,13 +7,12 @@ import blosc
 import numpy as np
 import torch
 from omegaconf import DictConfig
-
 from robot_learning.utils.logger import log
 
 DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def format_dict_keys(diFctionary, format_fn):
+def format_dict_keys(dictionary, format_fn):
     """Returns new dict with `format_fn` applied to keys in `dictionary`."""
     return collections.OrderedDict(
         [(format_fn(key), value) for key, value in dictionary.items()]

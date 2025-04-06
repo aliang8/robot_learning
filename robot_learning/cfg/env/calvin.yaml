@@ -1,7 +1,7 @@
 env_name: calvin
 env_id: close_drawer
 
-state_dim: 39
+state_dim: 15 # 39
 action_dim: 7
 
 max_episode_steps: 200
