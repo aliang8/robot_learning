@@ -1,4 +1,3 @@
-
 import numpy as np
 import torch
 from omegaconf import DictConfig
@@ -199,3 +198,4 @@ class TransformerDecoderLayer(nn.Module):
         if not self.pre_norm:
             x = self.norm3(x)
         return x
+

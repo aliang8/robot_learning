@@ -1,8 +1,12 @@
+from pathlib import Path
 
+import einops
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig
-from robot_learning.models.image_embedder import ImageEmbedder
+from omegaconf import DictConfig, OmegaConf
+
+from robot_learning.models.image_embedder import MultiInputEmbedder
+from robot_learning.models.lora import apply_lora
 from robot_learning.models.policy import POLICY_CLS_MAP
 from robot_learning.trainers.offline_trainer import OfflineTrainer
 from robot_learning.utils.logger import log
@@ -64,8 +68,7 @@ class BCTrainer(OfflineTrainer):
                 reduction="none", pos_weight=self.gripper_pos_weight
             )
 
-        # TODO: fix
-        # create loss functions depending on configuration
+        #  TODO: create loss functions depending on configuration
         # if self.model.is_gaussian:
         #     self.loss_fn = gaussian_nll_loss
         # else:
@@ -79,16 +82,13 @@ class BCTrainer(OfflineTrainer):
         if self.cfg.model.use_only_gripper_state:
             state_dim = 4
 
-        # TODO: only using ImageEmbedder for calvin envs
-        # embedder = MultiInputEmbedder(
-        #     cfg=self.cfg.model,
-        #     input_modalities=self.cfg.model.input_modalities,
-        #     state_dim=state_dim,
-        #     seq_len=self.cfg.data.seq_len if self.cfg.model.name == "mlp" else 1,
-        #     image_shape=(3, *self.cfg.env.image_shape),
-        # )
-
-        embedder = ImageEmbedder(model_name=self.cfg.model.embedding_model)
+        embedder = MultiInputEmbedder(
+            cfg=self.cfg.model,
+            input_modalities=self.cfg.model.input_modalities,
+            state_dim=state_dim,
+            seq_len=self.cfg.data.seq_len if self.cfg.model.name == "mlp" else 1,
+            image_shape=(3, *self.cfg.env.image_shape),
+        )
 
         if self.cfg.model.name not in POLICY_CLS_MAP:
             raise ValueError(f"Unknown model {self.cfg.model.name}")
@@ -106,13 +106,13 @@ class BCTrainer(OfflineTrainer):
                 self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
             )
 
-        # Maybe apply lora here
-        # TODO: finish this
-        # apply_lora(
-        #     self.model.model,  # apply to just the transformer
-        #     lora_r=self.cfg.lora.r,
-        #     lora_alpha=self.cfg.lora.alpha,
-        # )
+            # Maybe apply lora here
+            # TODO: finish this
+            apply_lora(
+                self.model.model,  # apply to just the transformer
+                lora_r=self.cfg.lora.r,
+                lora_alpha=self.cfg.lora.alpha,
+            )
 
         return model
 
@@ -207,7 +207,7 @@ class BCTrainer(OfflineTrainer):
                 metrics["gripper_accuracy"] = gripper_acc.item()
 
         else:
-            # TODO:
+            # TODO: i handle the loss calculation in the model, maybe change this to match the other models
             # Use single loss function for all dimensions
             # if self.model.is_gaussian:
             #     loss = self.loss_fn(
@@ -219,11 +219,12 @@ class BCTrainer(OfflineTrainer):
             # else:
             #     loss = self.loss_fn(action_preds.actions, batch.actions)
             #     loss = loss.mean()
-
+            # import ipdb; ipdb.set_trace()
             loss = metrics["loss"]
 
             metrics["loss"] = loss.item()
 
-            
+            pass
+
 
         return metrics, loss
