@@ -141,7 +141,8 @@ def process_dataset(
     )
     # process image in case we need to use it
     for key in cfg.input_modalities:
-        if "img" in key or "image" in key:
+        if ("img" in key or "image" in key) and "embed" not in key:
+            import ipdb; ipdb.set_trace()
             ds = ds.map(
                 partial(
                     process_image,

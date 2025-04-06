@@ -341,6 +341,7 @@ def run_eval_rollout(
 
                 if cfg.use_temporal_ensembling:
                     action = temporal_ensembler.update(actions)
+                    action = to_numpy(action).squeeze()
 
                 actions = to_numpy(actions).squeeze()
                 actions_list.append(actions)  # Store action

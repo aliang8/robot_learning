@@ -11,6 +11,12 @@ data:
   seq_len: 5  # chunk size to predict at once
   batch_size: 64
 
+lr_scheduler:
+  name: 'CosineAnnealingLR'
+  params:
+    T_max: ${num_updates}
+    eta_min: 3e-5
+    
 name: bc
 hp_name: bc_ac_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}
 
