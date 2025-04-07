@@ -208,4 +208,6 @@ class BCTrainer(OfflineTrainer):
                 loss = self.loss_fn(action_preds.actions, batch.actions)
                 loss = loss.mean()
 
+            metrics["loss"] = loss.item()
+
         return metrics, loss

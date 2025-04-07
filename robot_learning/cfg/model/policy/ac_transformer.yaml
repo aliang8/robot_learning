@@ -5,7 +5,7 @@ num_layers: 3
 pos_enc: learned
 
 # temporal ensembling
-temporal_ensemble_coeff: 0.9
+temporal_ensemble_coeff: 0.2
 use_temporal_ensembling: False
 
 hp_name: d-${.d_model}_nh-${.nhead}_nl-${.num_layers}_pe-${.pos_enc}
