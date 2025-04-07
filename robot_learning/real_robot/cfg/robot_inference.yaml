@@ -1,0 +1,19 @@
+ckpt_file: null
+ckpt_step: null
+client: True
+ip: localhost
+port: 5556
+
+image_size: 224
+framestack: 0
+
+save_dir: ${paths.root_dir}/real_world/eval_rollouts
+
+# ACT parameters
+# positive gives more weight to older actions
+temporal_ensemble_coeff: 0.9
+use_temporal_ensembling: False
+
+defaults:
+  - local: default
+  - _self_

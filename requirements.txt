@@ -47,3 +47,4 @@ pacmap
 matplotlib 
 opencv-python
 moviepy
+timm

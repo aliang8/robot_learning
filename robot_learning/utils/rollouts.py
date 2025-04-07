@@ -17,6 +17,9 @@ from PIL import Image, ImageDraw, ImageFont
 from robot_learning.data.dataclasses import Transition
 from robot_learning.envs.utils import make_envs
 from robot_learning.models.image_embedder import ImageEmbedder
+from robot_learning.models.policy.action_chunking_transformer_decoder import (
+    ACTTemporalEnsembler,
+)
 from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
 
@@ -103,7 +106,7 @@ def run_eval_rollouts(cfg: DictConfig, model: nn.Module, wandb_run=None):
         img_embedder = ImageEmbedder(
             model_name=cfg.model.embedding_model,
             device=device,
-            feature_map_layer=cfg.model.resnet_feature_map_layer,
+            # feature_map_layer=cfg.model.resnet_feature_map_layer,
         )
     else:
         img_embedder = None
@@ -249,6 +252,12 @@ def rollout_helper(
 
     if cfg.model.name == "act_transformer":
         model.reset(n_envs)
+    elif cfg.model.name == "ac_decoder":
+        temporal_ensembler = ACTTemporalEnsembler(
+            temporal_ensemble_coeff=cfg.model.temporal_ensemble_coeff,
+            chunk_size=cfg.data.seq_len,
+        )
+        temporal_ensembler.reset()
 
     while not np.all(dones):
         # break after max timesteps
@@ -256,12 +265,6 @@ def rollout_helper(
             break
 
         obs = torch.from_numpy(obs).to(device).float()
-
-        # normalize if using image observations
-        if cfg.env.image_obs:
-            obs = obs / 255.0
-            # also reshape so channel comes first
-            obs = obs.permute(0, 3, 1, 2)
 
         timesteps = (
             torch.arange(cfg.model.seq_len).unsqueeze(0).to(device).repeat(n_envs, 1)
@@ -273,6 +276,31 @@ def rollout_helper(
             "image_embeddings": None,
             "timesteps": timesteps,
         }
+
+        # TODO: want to make this a wrapper
+        if cfg.env.env_name == "calvin":
+            model_inputs["states"] = model_inputs["states"][:, :15]  # robot state
+
+            if n_envs == 1:
+                image_dict = env.call("get_camera_obs")[0][0]
+                images = image_dict["rgb_static"]
+                images = images[None, :]
+            else:
+                image_dicts = env.env_method("get_camera_obs")
+                images = [image_dict[0]["rgb_static"] for image_dict in image_dicts]
+
+            # to tensor
+            images = np.array(images)
+            images = torch.from_numpy(images).to(device).float()
+
+            # normalize and reshape so channel comes first
+            images = images / 255.0
+            images = images.permute(0, 3, 1, 2)
+            model_inputs["images"] = images
+
+            # also add embeddings
+            image_embeddings = img_embedder(images)
+            model_inputs["image_embeddings"] = image_embeddings
 
         if cfg.model.name == "act_transformer":
             if cfg.env.image_obs:
@@ -286,28 +314,47 @@ def rollout_helper(
                     image_embeddings = None
 
                 # the unsqueeze is to match training time shape of chunk size
-                action_pred = model.select_action(
+                actions = model.select_action(
                     states=states.unsqueeze(1),
                     images=obs.unsqueeze(1),
                     image_embeddings=image_embeddings,
                 )
             else:
-                action_pred = model.select_action(states=obs.unsqueeze(1))
+                actions = model.select_action(states=obs.unsqueeze(1))
+
             # predicts a chunk, let's take the first one for now
             # TODO: implement temporal ensembling
-            action_pred = action_pred[:, 0]
+            actions = actions[:, 0]
         elif cfg.model.name == "ac_decoder" or cfg.model.name == "mlp":
-            action_pred = model.select_action(model_inputs, sample=False)
-        else:
-            action_pred = model(obs, decode_latent_action=True)
+            # the unsqueeze is to match training time shape of chunk size
+            for k, v in model_inputs.items():
+                if v is not None:
+                    model_inputs[k] = v.unsqueeze(1)
 
-        action = to_numpy(action_pred)
+            actions = model.select_action(model_inputs, sample=False)
+        else:
+            actions = model(obs, decode_latent_action=True)
+
+        if cfg.model.use_temporal_ensembling:
+            action = temporal_ensembler.update(actions)
+            action = to_numpy(action)
+
+        actions = to_numpy(actions)
 
         # step in the environment
         if cfg.env.env_name == "metaworld":
             obs, reward, done, _, info = env.step(action)
         else:
-            obs, reward, done, info = env.step(action)
+            if cfg.data.seq_len > 1:
+                if cfg.model.use_temporal_ensembling:
+                    obs, reward, done, info = env.step(action)
+                else:
+                    # open loop
+                    for i in range(cfg.data.seq_len // 2):
+                        action = actions[:, i]
+                        obs, reward, done, info = env.step(action)
+            else:
+                obs, reward, done, info = env.step(actions)
 
         # update episode returns and lengths
         dones = np.logical_or(dones, done)

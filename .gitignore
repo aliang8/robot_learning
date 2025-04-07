@@ -6,3 +6,5 @@
 *.jpeg
 *.gif
 *.egg-info
+robot_learning/real_robot/outputs/*
+robot_learning/cfg/local/*

@@ -1,8 +1,10 @@
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from robot_learning.models.utils.utils import get_activation_fn
 from torch import Tensor, nn
+
+from robot_learning.models.utils.utils import get_activation_fn
+from robot_learning.utils.logger import log
 
 
 class TransformerEncoder(nn.Module):
@@ -198,4 +200,3 @@ class TransformerDecoderLayer(nn.Module):
         if not self.pre_norm:
             x = self.norm3(x)
         return x
-

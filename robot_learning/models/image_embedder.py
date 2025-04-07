@@ -155,13 +155,13 @@ class ImageEmbedder(nn.Module):
             # Set custom download path
             import os
 
-            # os.environ["TORCH_HOME"] = "`/scr`/aliang80/.cache/torch/hub"
-            os.environ["TORCH_HOME"] = "/home1/hongmm/.cache/torch/hub"
+            os.environ["TORCH_HOME"] = "/scr/aliang80/.cache/torch/hub"
+            # os.environ["TORCH_HOME"] = "/home1/hongmm/.cache/torch/hub"
 
-            # default_cache_dir = os.path.expanduser("/scr/aliang80/.cache/torch/hub")
-            default_cache_dir = os.path.expanduser(
-                "/home1/hongmm/.cache/torch/hub"
-            )  
+            default_cache_dir = os.path.expanduser("/scr/aliang80/.cache/torch/hub")
+            # default_cache_dir = os.path.expanduser(
+            #     "/home1/hongmm/.cache/torch/hub"
+            # )
             cache_dir = os.getenv("TORCH_HOME", default_cache_dir)
 
             # Load model
@@ -243,9 +243,9 @@ class ImageEmbedder(nn.Module):
             assert images[0].ndim == 3, "Images must be 3D numpy array"
             assert images[0].shape[2] == 3, "Images must have 3 channels"
             # assert between [0, 255]
-            assert images[0].max() > 1.0 and images[0].min() >= 0.0, (
-                "Images must be normalized to [0, 255]"
-            )
+            assert (
+                images[0].max() > 1.0 and images[0].min() >= 0.0
+            ), "Images must be normalized to [0, 255]"
 
             # List of numpy arrays
             processed = torch.stack(
@@ -262,9 +262,9 @@ class ImageEmbedder(nn.Module):
                 assert images.shape[2] == 3, "Images must have 3 channels"
 
             # assert between [0, 255]
-            assert images.max() > 1.0 and images.min() >= 0.0, (
-                "Images must be normalized to [0, 255]"
-            )
+            assert (
+                images.max() > 1.0 and images.min() >= 0.0
+            ), "Images must be normalized to [0, 255]"
 
             if images.ndim == 3:
                 # Single numpy image
@@ -285,12 +285,12 @@ class ImageEmbedder(nn.Module):
 
             # addd some sanity checks to input
             assert images.ndim == 4, "Images must be 4D tensor"
-            assert images.max() <= 1.0 and images.min() >= 0.0, (
-                "Images must be normalized to [0, 1]"
-            )
-            assert images.shape[1] == 3, (
-                "Images must have 3 channels and be in CHW format"
-            )
+            assert (
+                images.max() <= 1.0 and images.min() >= 0.0
+            ), "Images must be normalized to [0, 1]"
+            assert (
+                images.shape[1] == 3
+            ), "Images must have 3 channels and be in CHW format"
 
             processed = torch.stack(
                 [
@@ -336,9 +336,9 @@ class ImageEmbedder(nn.Module):
                 embeddings = embeddings.flatten(1)
         elif self.model_name == "r3m":
             # R3M expects values between 0 and 255
-            assert processed.max() <= 1.0 and processed.min() >= 0.0, (
-                "Images must be normalized to [0, 1]"
-            )
+            assert (
+                processed.max() <= 1.0 and processed.min() >= 0.0
+            ), "Images must be normalized to [0, 1]"
             embeddings = self.model(processed * 255.0)
         elif self.model_name.startswith("dinov2"):
             # DINOv2 returns CLS token by default
@@ -383,21 +383,23 @@ class MultiInputEmbedder(nn.Module):
         if "states" in input_modalities:
             state_embedder = nn.Sequential(
                 nn.Linear(state_dim * seq_len, cfg.embedding_dim),
-                nn.LeakyReLU(0.2),
+                nn.GELU(),
                 nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
             )
             self.embedders["states"] = state_embedder
             input_dim += cfg.embedding_dim
 
         for modality in embed_modalities:
-            self.embedders[modality] = nn.Sequential(
-                nn.Linear(
-                    EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
-                ),
-                nn.LeakyReLU(0.2),
-                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-            )
-            input_dim += cfg.embedding_dim
+            # self.embedders[modality] = nn.Sequential(
+            #     nn.Linear(
+            #         EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
+            #     ),
+            #     nn.GELU(),
+            #     nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            # )
+            self.embedders[modality] = nn.Identity()
+            # input_dim += cfg.embedding_dim
+            input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
             # Create custom conv network to embed the images
@@ -429,11 +431,15 @@ class MultiInputEmbedder(nn.Module):
 
         self.embedders = nn.ModuleDict(self.embedders)
 
-        self.fusion_network = nn.Sequential(
-            nn.Linear(input_dim, cfg.embedding_dim),
-            nn.LeakyReLU(0.2),
-            nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-        )
+        # if only one modality, no need for fusion
+        if len(self.input_modalities) == 1:
+            self.fusion_network = nn.Identity()
+        else:
+            self.fusion_network = nn.Sequential(
+                nn.Linear(input_dim, cfg.embedding_dim),
+                nn.GELU(),
+                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            )
 
         self.output_dim = cfg.embedding_dim
 

@@ -136,7 +136,6 @@ class BaseTrainer:
             # save config to yaml file
             OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
 
-
         # create env
         # log(f"creating {self.cfg.env.env_name} environments...")
 
@@ -162,7 +161,7 @@ class BaseTrainer:
                 local_rank=self.local_rank,
             )
 
-        else:   
+        else:
             self.train_ds, self.eval_ds = get_dataloader(
                 cfg,
                 dataset_names=cfg.data.datasets,

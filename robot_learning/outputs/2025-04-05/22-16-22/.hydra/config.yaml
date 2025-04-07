@@ -1,0 +1,44 @@
+paths:
+  root_dir: /scr/aliang80/continuous_lam/clam
+  data_dir: /scr/shared/clam
+  sam_path: /scr/aliang80/Grounded-SAM-2
+  optical_flow_path: /scr/aliang80/continuous_lam/clam/scripts/optical_flow
+  results_dir: /scr/aliang80/continuous_lam/clam/results_slurm
+  wandb_dir: /scr/aliang80/wandb
+wandb:
+  entity: clvr
+  project: clam-flow
+env_name: robot
+task_name: pick_up_green_block_lighting2
+seed: 0
+data_dir: ${paths.data_dir}/datasets
+tfds_data_dir: ${paths.data_dir}/tensorflow_datasets
+dataset_name: robot_play
+black_white: false
+batch_size: 64
+framestack: 1
+save_imgs: true
+debug: false
+image_size:
+- 128
+- 128
+compute_2d_flow: false
+flow:
+  sam_path: ${paths.sam_path}
+  sam2_checkpoint: checkpoints/sam2.1_hiera_large.pt
+  model_cfg: sam2.1_hiera_l.yaml
+  model_id: IDEA-Research/grounding-dino-tiny
+  video_dir: notebooks/videos/robot
+  video_file: data/videos/2024-09-21_13-26-56_raw_traj_group0_traj0.mp4
+  text: robot. object.
+  device: cuda
+  base_path: ${paths.optical_flow_path}
+  cotracker_ckpt: scaled_offline.pth
+  seg_mask_file: data/videos/segm_mask.npy
+  grid_size: 25
+  save_tracking_video: false
+  tracking_dir: results
+  tracking_filename: segm_grid
+  max_query_points: 40
+precompute_embeddings: true
+embedding_model: dinov2_vitb14

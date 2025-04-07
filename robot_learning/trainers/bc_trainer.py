@@ -75,7 +75,7 @@ class BCTrainer(OfflineTrainer):
             # self.loss_fn = nn.MSELoss(reduction="none")
             self.loss_fn = nn.L1Loss(reduction="none")
 
-    def setup_model(self, action_dim: int = None, action_activation: str = "Tanh"):
+    def setup_model(self, action_dim: int = None):
         # Input action dim in case we are doing CLAM policy training
 
         state_dim = self.cfg.env.state_dim
@@ -201,11 +201,9 @@ class BCTrainer(OfflineTrainer):
             # Use single loss function for all dimensions
             if self.model.is_gaussian:
                 loss = self.loss_fn(
-                    batch.actions,
-                    action_preds.mean,
-                    action_preds.logvar,
-                    reduction="mean",
+                    batch.actions, action_preds.mean, action_preds.logvar
                 )
+                loss = loss.mean()
             else:
                 loss = self.loss_fn(action_preds.actions, batch.actions)
                 loss = loss.mean()

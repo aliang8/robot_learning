@@ -35,34 +35,38 @@ class Batch:
     states: BTX
     actions: BT
     rewards: BT = None
-    observations: BTX = None
-    next_observations: np.ndarray = None
     dones: np.ndarray = None
-    tasks: np.ndarray = None
-    mask: BT = None
     timestep: BT = None
-    scene_obs: BT = None
-    traj_index: np.ndarray = None
     latent_actions: np.ndarray = None
     prequantized_las: np.ndarray = None
     is_first: BT = None
     is_last: BT = None
     is_terminal: BT = None
     discount: BT = None
-    images: BTHWC = None
-    image_embeddings: BT = None
-    embeddings: BT = None
-    env_state: np.ndarray = None
-    points: np.ndarray = None
-    points_viz: np.ndarray = None
-    points_mask: np.ndarray = None
-    external_imgs: BTHWC = None
-    wrist_imgs: BTHWC = None
-    over_shoulder_imgs: BTHWC = None
-    depth_imgs: BTHWC = None
-    external_img_embeds: BT = None
-    over_shoulder_img_embeds: BT = None
-    wrist_img_embeds: BT = None
-    wrist_image_embeddings: BTX = None
-    costs: BT = None
-    gmflow: BTHWC = None
+
+    # Additional arbitrary arguments
+    _extra_fields: dict = None
+
+    def __post_init__(self):
+        if self._extra_fields is None:
+            self._extra_fields = {}
+
+    def __getattr__(self, name):
+        if name in self._extra_fields:
+            return self._extra_fields[name]
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{name}'"
+        )
+
+    @classmethod
+    def create(cls, states, actions, **kwargs):
+        """Factory method to create a Batch with arbitrary additional fields."""
+        known_fields = cls.__dataclass_fields__.keys()
+        standard_kwargs = {k: v for k, v in kwargs.items() if k in known_fields}
+        extra_kwargs = {k: v for k, v in kwargs.items() if k not in known_fields}
+        return cls(
+            states=states,
+            actions=actions,
+            **standard_kwargs,
+            _extra_fields=extra_kwargs,
+        )

@@ -69,8 +69,6 @@ def to_numpy(x):
         return {k: v.cpu().detach().numpy() for k, v in x.items()}
     else:
         return x
-    
-
 
 
 def set_seed(seed):
@@ -91,6 +89,7 @@ def get_data(path):
 
     # return np.array(data) # TODO: cant do this right now since some 2D flow is dict
     return data
+
 
 def save_data(path, data):
     log(f"Saving to {path}", "yellow")

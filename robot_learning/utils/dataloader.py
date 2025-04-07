@@ -33,8 +33,9 @@ def add_new_fields(x, cfg):
         x["points"] = x["points"] / 84
 
     x = del_keys(x)
-    
+
     return x
+
 
 def del_keys(x):
     # TODO: for now just get rid of unused keys, taking a lot of time when moving device
@@ -58,7 +59,6 @@ def del_keys(x):
         del x["wrist_images"]
 
     return x
-
 
 
 def process_image(
@@ -102,7 +102,7 @@ def process_state(x, cfg, env_name):
     if has_framestack:
         # take the last state!
         states = states[:, -1]
-        
+
     return x
 
 
@@ -124,7 +124,6 @@ def process_dataset(
     shuffle: bool = True,
     env_name: str = None,
     drop_remainder: bool = False,
-    use_precomputed_img_embeds: bool = False,
 ):
     """
     Applies transformations to base tfds such as batching, shuffling, etc.
@@ -150,7 +149,7 @@ def process_dataset(
     )
     # process image in case we need to use it
     for key in cfg.input_modalities:
-        if "img" in key:
+        if ("img" in key or "image" in key) and "embed" not in key:
             ds = ds.map(
                 partial(
                     process_image,
@@ -216,38 +215,30 @@ def get_dataloader(
     """
     data_cfg = cfg.data
     data_dir = Path(data_cfg.data_dir) / "tensorflow_datasets"
-    
-    if cfg.retrieval:
-        if cfg.data.with_expert:
-            data_dir  = data_dir / "retrieved_dataset_expert"
-        else:
-            data_dir = data_dir / "retrieved_dataset"
-
-    log(f"loading tfds dataset from: {data_dir}")
-
     env_id = cfg.env.env_id
+
+    if cfg.retrieval:
+        data_dir = data_dir / "retrieved_dataset"
+
+    log(f"Loading tfds dataset from: {data_dir}, env id: {env_id}")
+    log(f"Dataset names: {dataset_names}")
+    log(f"Dataset split: {dataset_split}")
 
     datasets = {}
     dataset_split = dataset_split[: len(dataset_names)]
     # convert this into a ratio
     dataset_ratio = [x / sum(dataset_split) for x in dataset_split]
-
-    log(
-        f"loading dataset for {env_id}, num datasets: {len(dataset_names)}, ratios: {dataset_ratio}"
-    )
+    log(f"Dataset ratio: {dataset_ratio}")
 
     total_trajs = 0
     ds_to_len = {}
     for i, ds_name in enumerate(dataset_names):
-
         if cfg.retrieval:
             ds_name = f"{cfg.method}/{ds_name}_N-{cfg.N}_K-{cfg.K}"
             dataset_names[i] = ds_name
 
         save_file = data_dir / cfg.data.dataset_name / ds_name
         ds = tf.data.Dataset.load(str(save_file))
-        log(f"\tdataset name: {ds_name}, num trajs: {len(ds)}")
-
         if data_cfg.load_latent_actions:
             mapping_file = save_file / "la_map.json"
 
@@ -289,7 +280,8 @@ def get_dataloader(
         total_trajs += len(ds)
         ds_to_len[ds_name] = len(ds)
 
-    log(f"total trajectories: {total_trajs}")
+    log(f"Total trajectories: {total_trajs}")
+
     for ds_name in dataset_names:
         log(f"\t{ds_name}: {ds_to_len[ds_name]} trajs")
 
@@ -297,7 +289,8 @@ def get_dataloader(
     train_ds = {}
     eval_ds = {}
 
-    log("split dataset into train and eval: ")
+    log("=" * 100)
+    log("Split dataset into train and eval: ")
     for i, ds_name in enumerate(dataset_names):
         num_take = int(ds_to_len[ds_name] * cfg.data.train_frac)
         num_eval = ds_to_len[ds_name] - num_take
@@ -305,7 +298,8 @@ def get_dataloader(
         train_ds[ds_name] = datasets[ds_name].take(num_take)
         eval_ds[ds_name] = datasets[ds_name].skip(num_take)
 
-    log("creating train datasets")
+    log("=" * 100)
+    log("Creating train datasets")
     for i, ds_name in enumerate(dataset_names):
         cfg_train = cfg.data.copy()
         if cfg.data.num_trajs != -1:
@@ -331,7 +325,7 @@ def get_dataloader(
             cfg_train, ds, env_name=cfg.env.env_name, shuffle=shuffle
         )
 
-    log("creating eval datasets")
+    log("Creating eval datasets")
     # use all the trajectories in the eval dataset
     cfg_eval = cfg.data.copy()
     cfg_eval.num_trajs = -1
