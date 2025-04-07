@@ -1,0 +1,56 @@
+# a100: epyc-7513
+# a40: epyc-7282 <- no good, these are very good for training offline
+# epyc-7313 <- good
+# v100: xeon-6130
+# p100: xeon-2640v4
+# l40s: epyc-9534 <- no good
+
+
+defaults:
+  - submitit_slurm
+
+# @package hydra.launcher
+submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+timeout_min: 2400
+cpus_per_task: 8
+# gpus_per_node: 1
+tasks_per_node: 1
+gpus_per_task: 1
+mem_gb: 250
+nodes: 1
+name: ${hydra.job.name}
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
+
+partition: gpu
+account: yzhao010_1531
+# account: biyik_1165
+
+# gres: gpu
+# constraint: xeon-2640v4|xeon-6130|epyc-7513
+# constraint: epyc-7282
+# constraint: xeon-6130
+
+qos: null
+comment: null
+cpus_per_gpu: null
+mem_per_cpu: null
+signal_delay_s: 120
+max_num_timeout: 0
+additional_parameters: {}
+array_parallelism: 256
+
+setup:
+  - module purge
+  - module load conda
+  - source /spack/conda/miniforge3/24.3.0/etc/profile.d/conda.sh  # Load Conda
+  - conda activate llmhf                                           # Activate your Conda environment
+  - export MUJOCO_GL=egl
+  - export DISPLAY=:99
+  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home1/hongmm/.mujoco/mujoco210/bin
+  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/spack/2206/apps/linux-centos7-x86_64_v3/gcc-11.3.0/poppler-21.09.0-k3uihz5/lib64:/spack/2206/apps/linux-centos7-x86_64_v3/gcc-11.3.0/openblas-0.3.20-n62j5my/lib:/spack/2206/apps/linux-centos7-x86_64_v3/gcc-11.3.0/texlive-20220321-bojoebc/lib:/spack/apps/gcc/11.3.0/lib64:/spack/conda/miniforge3/24.3.0/lib
+  - export PYTHONPATH=$PYTHONPATH:/home1/hongmm/p-llm-hf  # Set PYTHONPATH to include your project root
+  - env > batch_env.log
+  - export MKL_NUM_THREADS=1
+  - export NUMEXPR_NUM_THREADS=1
+  - export OMP_NUM_THREADS=1

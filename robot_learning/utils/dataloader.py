@@ -57,6 +57,8 @@ def del_keys(x):
         del x["flow"]
     if "wrist_images" in x:
         del x["wrist_images"]
+    if "gmflow" in x:
+        del x["gmflow"]
 
     return x
 
@@ -218,7 +220,13 @@ def get_dataloader(
     env_id = cfg.env.env_id
 
     if cfg.retrieval:
-        data_dir = data_dir / "retrieved_dataset"
+        # if expert trajectories are included in the retrieved dataset
+        if cfg.data.with_expert:
+            data_dir = data_dir / "retrieved_dataset_expert"
+        else:
+            data_dir = data_dir / "retrieved_dataset"
+
+
 
     log(f"Loading tfds dataset from: {data_dir}, env id: {env_id}")
     log(f"Dataset names: {dataset_names}")

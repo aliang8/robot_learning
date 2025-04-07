@@ -76,6 +76,9 @@ lr_scheduler:
     # factor: 1
     verbose: False
 
+use_separate_gripper: False
+retrieval: False
+
 debug: False
 
 # config using huggingface accelerate for parallel training

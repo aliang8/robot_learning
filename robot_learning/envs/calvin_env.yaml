@@ -30,7 +30,7 @@ cameras:
     width: 84
     height: 84
 bullet_time_step: 240.0
-use_vr: false
+use_vr: falsex
 show_gui: false
 robot_cfg:
   _target_: calvin_env.robot.robot.Robot
