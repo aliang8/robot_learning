@@ -100,14 +100,17 @@ def apply_lora(
     include_names: Optional[list[str]] = None,
     exclude_names: Optional[list[str]] = None,
 ):
-    log("Applying LoRA to model", "green")
+    log("Applying LoRA to model and freezing non-LoRA weights", "green")
 
     check = partial(
         module_name_check, include_names=include_names, exclude_names=exclude_names
     )
 
     for name, module in model.named_modules():
-        if check(name):
+
+        if "embedder" in name:
+            log(f"Skipping {name} as it is an embedding layer", "green")
+        elif check(name):
             if type(module) == torch.nn.Linear:
                 l = LoraLayer(
                     weight=module.weight,

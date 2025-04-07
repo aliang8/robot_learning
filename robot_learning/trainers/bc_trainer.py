@@ -109,7 +109,7 @@ class BCTrainer(OfflineTrainer):
             # Maybe apply lora here
             # TODO: finish this
             apply_lora(
-                self.model.model,  # apply to just the transformer
+                model,
                 lora_r=self.cfg.lora.r,
                 lora_alpha=self.cfg.lora.alpha,
             )

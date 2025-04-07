@@ -87,7 +87,6 @@ accelerate:
   use_fp16: False
 
 defaults:
-  # - env: metaworld
   - env: calvin
   - data: base
   - local: default
