@@ -1,0 +1,4 @@
+name: 'CosineAnnealingLR'
+params:
+  T_max: ${num_updates}
+  eta_min: 3e-5

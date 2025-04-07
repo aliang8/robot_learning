@@ -1,0 +1,7 @@
+name: AdamW
+params:
+  lr: 3e-4
+  eps: 1e-5
+  weight_decay: 1e-3
+  betas: [0.9, 0.999]
+warmup_fraction: 0.1

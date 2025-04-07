@@ -212,23 +212,21 @@ def main(cfg):
 
         # Compute embeddings if requested (only for RGB images)
         camera_embeddings = {}
-        for camera_type, images in camera_imgs.items():
-            embeddings = None
-            if (
-                cfg.precompute_embeddings
-                and embedder is not None
-                and "depth" not in camera_type
-            ):
-                # Split images to avoid memory issues
-                imgs_split = np.array_split(images, 2)
-                embeddings = []
-                for img_batch in imgs_split:
-                    embeddings.append(to_numpy(embedder(img_batch)))
-                    # clean up gpu memory
-                    torch.cuda.empty_cache()
+        if cfg.precompute_embeddings and embedder is not None:
+            for camera_type, images in camera_imgs.items():
+                embeddings = None
+                if "depth" not in camera_type:
+                    camera_type = camera_type.replace("_images", "")
+                    # Split images to avoid memory issues
+                    imgs_split = np.array_split(images, 2)
+                    embeddings = []
+                    for img_batch in imgs_split:
+                        embeddings.append(to_numpy(embedder(img_batch)))
+                        # clean up gpu memory
+                        torch.cuda.empty_cache()
 
-                embeddings = np.concatenate(embeddings)
-                camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
+                    embeddings = np.concatenate(embeddings)
+                    camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
 
         # Create trajectory data dictionary
         traj_data = {

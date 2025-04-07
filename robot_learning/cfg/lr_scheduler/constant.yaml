@@ -1,0 +1,4 @@
+name: 'ConstantLR'
+params:
+  # factor: 1
+  verbose: False
