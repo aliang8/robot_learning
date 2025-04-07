@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -153,15 +154,14 @@ class ImageEmbedder(nn.Module):
             version = self.RADIO_VERSIONS[model_name]
 
             # Set custom download path
-            import os
+            
 
-            # os.environ["TORCH_HOME"] = "/scr/aliang80/.cache/torch/hub"
-            os.environ["TORCH_HOME"] = "/home1/hongmm/.cache/torch/hub"
+            cwd = os.getcwd()
+            parent =os.path.abspath(os.path.join(cwd, "../.."))
 
-            # default_cache_dir = os.path.expanduser("/scr/aliang80/.cache/torch/hub")
-            default_cache_dir = os.path.expanduser(
-                "/home1/hongmm/.cache/torch/hub"
-            )
+            os.environ["TORCH_HOME"] = f"{parent}/.cache/torch/hub"
+            default_cache_dir = os.path.expanduser(f"{parent}/.cache/torch/hub")
+
             cache_dir = os.getenv("TORCH_HOME", default_cache_dir)
 
             # Load model
