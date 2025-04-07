@@ -2,7 +2,7 @@
 Script to rename image directories in trajectory data.
 
 Usage:
-    python robot_learning.real_robot.scripts.rename_image_dirs <base_directory>
+    python -m robot_learning.real_robot.scripts.rename_image_dirs <base_directory>
 """
 
 import os
@@ -10,7 +10,7 @@ import sys
 from glob import glob
 from pathlib import Path
 
-from clam.utils.logger import log
+from robot_learning.utils.logger import log
 
 
 def rename_image_directories(base_dir: str):

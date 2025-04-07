@@ -21,6 +21,7 @@ import numpy as np
 import tensorflow as tf
 import torch
 import tqdm
+from omegaconf import DictConfig
 from PIL import Image
 
 from robot_learning.data.utils import (
@@ -134,6 +135,58 @@ def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
         elif "wrist" in file_path:
             camera_mapping["wrist"] = file_path
     return camera_mapping
+
+
+def load_robot_data(
+    cfg: DictConfig, data_dir: str, embedder: Optional[ImageEmbedder] = None
+):
+    traj_dirs = sorted(glob(str(data_dir) + "/traj*"))
+    trajectories = []
+
+    log(f"Processing {len(traj_dirs)} trajectory groups", "yellow")
+
+    if cfg.debug:
+        traj_dirs = traj_dirs[:2]
+
+    for traj_dir in tqdm.tqdm(traj_dirs, desc="Processing traj groups"):
+        data_files = sorted(glob(traj_dir + "/*"))
+
+        # Check for required files
+        obs_dict_file = [f for f in data_files if "obs_dict.pkl" in f]
+        policy_out_file = [f for f in data_files if "policy_out.pkl" in f]
+
+        if not (obs_dict_file and policy_out_file):
+            log(f"Skipping {traj_dir} - missing required files", "red")
+            continue
+
+        # Get available cameras
+        camera_mapping = get_available_cameras(data_files)
+        if not camera_mapping:
+            log(f"Skipping {traj_dir} - no camera data found", "red")
+            continue
+
+        # Initialize storage for images and embeddings
+        camera_imgs = {}
+        camera_embeddings = {}
+
+        # Process each available camera
+        for camera_type, camera_dir in camera_mapping.items():
+            is_depth = camera_type == "depth"
+            imgs, embeddings = load_and_process_images(
+                camera_dir, cfg, embedder if not is_depth else None, is_depth=is_depth
+            )
+
+            if imgs is not None:
+                camera_imgs[f"{camera_type}_images"] = imgs
+            if embeddings is not None:
+                camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
+
+        # Load metadata
+        obs_dict = load_metadata(obs_dict_file[0])
+        policy_out = load_metadata(policy_out_file[0])
+        trajectories.append([obs_dict, policy_out, camera_imgs, camera_embeddings])
+
+    return trajectories
 
 
 @hydra.main(
