@@ -30,11 +30,12 @@ from robot_learning.data.utils import (
     save_dataset,
 )
 from robot_learning.models.image_embedder import ImageEmbedder
+from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
 
 
-def load_and_process_images(
-    image_dir: str, cfg, embedder=None, is_depth: bool = False
+def load_images(
+    cfg, image_dir: str, is_depth: bool = False
 ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
     Load, process images and compute embeddings if needed.
@@ -55,9 +56,6 @@ def load_and_process_images(
     # Load images
     images = [Image.open(Path(image_dir) / img_path) for img_path in image_paths]
     images = np.array([np.array(img) for img in images])[:-1]
-
-    if not cfg.save_imgs:
-        return None, None
 
     # Process images differently based on type
     if is_depth:
@@ -91,20 +89,7 @@ def load_and_process_images(
         ]
         processed_images = np.array(processed_images)
 
-    # Compute embeddings if requested (only for RGB images)
-    embeddings = None
-    if cfg.precompute_embeddings and embedder is not None and not is_depth:
-        # Split images to avoid memory issues
-        imgs_split = np.array_split(images, 2)
-        embeddings = []
-        for img_batch in imgs_split:
-            embeddings.append(embedder(img_batch).detach().cpu().numpy())
-            # clean up gpu memory
-            torch.cuda.empty_cache()
-
-        embeddings = np.concatenate(embeddings)
-
-    return processed_images, embeddings
+    return processed_images
 
 
 def load_metadata(data_file: str) -> Dict:
@@ -137,23 +122,31 @@ def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
     return camera_mapping
 
 
-def load_robot_data(
-    cfg: DictConfig, data_dir: str, embedder: Optional[ImageEmbedder] = None
-):
+def load_robot_data(cfg: DictConfig, data_dir: str):
+    """
+    Assumes robot data is stored in the following format:
+    data_dir/
+        traj_0/
+            obs_dict.pkl
+            policy_out.pkl
+            depth_images/
+            external_images/
+    """
     traj_dirs = sorted(glob(str(data_dir) + "/traj*"))
-    trajectories = []
-
-    log(f"Processing {len(traj_dirs)} trajectory groups", "yellow")
+    # filter only folders
+    traj_dirs = [d for d in traj_dirs if os.path.isdir(d)]
+    log(f"Processing {len(traj_dirs)} trajectories", "yellow")
 
     if cfg.debug:
         traj_dirs = traj_dirs[:2]
 
+    trajectories = []
     for traj_dir in tqdm.tqdm(traj_dirs, desc="Processing traj groups"):
         data_files = sorted(glob(traj_dir + "/*"))
 
         # Check for required files
-        obs_dict_file = [f for f in data_files if "obs_dict.pkl" in f]
-        policy_out_file = [f for f in data_files if "policy_out.pkl" in f]
+        obs_dict_file = Path(traj_dir) / "obs_dict.pkl"
+        policy_out_file = Path(traj_dir) / "policy_out.pkl"
 
         if not (obs_dict_file and policy_out_file):
             log(f"Skipping {traj_dir} - missing required files", "red")
@@ -167,24 +160,19 @@ def load_robot_data(
 
         # Initialize storage for images and embeddings
         camera_imgs = {}
-        camera_embeddings = {}
 
         # Process each available camera
         for camera_type, camera_dir in camera_mapping.items():
             is_depth = camera_type == "depth"
-            imgs, embeddings = load_and_process_images(
-                camera_dir, cfg, embedder if not is_depth else None, is_depth=is_depth
-            )
+            imgs = load_images(cfg, camera_dir, is_depth=is_depth)
 
             if imgs is not None:
                 camera_imgs[f"{camera_type}_images"] = imgs
-            if embeddings is not None:
-                camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
 
         # Load metadata
-        obs_dict = load_metadata(obs_dict_file[0])
-        policy_out = load_metadata(policy_out_file[0])
-        trajectories.append([obs_dict, policy_out, camera_imgs, camera_embeddings])
+        obs_dict = load_metadata(obs_dict_file)
+        policy_out = load_metadata(policy_out_file)
+        trajectories.append([obs_dict, policy_out, camera_imgs])
 
     return trajectories
 
@@ -215,49 +203,32 @@ def main(cfg):
     )
 
     data_dir = Path(cfg.data_dir) / cfg.dataset_name / cfg.task_name
-    traj_dirs = sorted(glob(str(data_dir) + "/*"))
-    trajectories = []
-
-    log(f"Processing {len(traj_dirs)} trajectory groups", "yellow")
 
     num_transitions = 0
+    processed_trajs = []
+    trajectories = load_robot_data(cfg, data_dir)
+    for traj in trajectories:
+        obs_dict, policy_out, camera_imgs = traj
 
-    for traj_dir in tqdm.tqdm(traj_dirs, desc="Processing traj groups"):
-        data_files = sorted(glob(traj_dir + "/*"))
-
-        # Check for required files
-        obs_dict_file = [f for f in data_files if "obs_dict.pkl" in f]
-        policy_out_file = [f for f in data_files if "policy_out.pkl" in f]
-
-        if not (obs_dict_file and policy_out_file):
-            log(f"Skipping {traj_dir} - missing required files", "red")
-            continue
-
-        # Get available cameras
-        camera_mapping = get_available_cameras(data_files)
-        if not camera_mapping:
-            log(f"Skipping {traj_dir} - no camera data found", "red")
-            continue
-
-        # Initialize storage for images and embeddings
-        camera_imgs = {}
+        # Compute embeddings if requested (only for RGB images)
         camera_embeddings = {}
+        for camera_type, images in camera_imgs.items():
+            embeddings = None
+            if (
+                cfg.precompute_embeddings
+                and embedder is not None
+                and "depth" not in camera_type
+            ):
+                # Split images to avoid memory issues
+                imgs_split = np.array_split(images, 2)
+                embeddings = []
+                for img_batch in imgs_split:
+                    embeddings.append(to_numpy(embedder(img_batch)))
+                    # clean up gpu memory
+                    torch.cuda.empty_cache()
 
-        # Process each available camera
-        for camera_type, camera_dir in camera_mapping.items():
-            is_depth = camera_type == "depth"
-            imgs, embeddings = load_and_process_images(
-                camera_dir, cfg, embedder if not is_depth else None, is_depth=is_depth
-            )
-
-            if imgs is not None:
-                camera_imgs[f"{camera_type}_images"] = imgs
-            if embeddings is not None:
+                embeddings = np.concatenate(embeddings)
                 camera_embeddings[f"{camera_type}_img_embeds"] = embeddings
-
-        # Load metadata
-        obs_dict = load_metadata(obs_dict_file[0])
-        policy_out = load_metadata(policy_out_file[0])
 
         # Create trajectory data dictionary
         traj_data = {
@@ -268,23 +239,21 @@ def main(cfg):
             **camera_embeddings,
         }
         base_trajectory = get_base_trajectory(traj_data["rewards"])
-        traj = {**base_trajectory, **traj_data}
+        traj_data = {**base_trajectory, **traj_data}
 
         num_transitions += len(traj_data["rewards"])
-        trajectories.append(traj)
+        processed_trajs.append(traj_data)
 
         if cfg.debug:
             break
 
-    if trajectories:
-        traj = trajectories[0]
+    if processed_trajs:
+        traj = processed_trajs[0]
         for k, v in traj.items():
             log(f"{k}: {v.shape}", "yellow")
 
     log(f"Total transitions: {num_transitions} collected", "green")
-
-    # Save dataset
-    save_dataset(trajectories, save_file)
+    save_dataset(processed_trajs, save_file)
 
 
 if __name__ == "__main__":
