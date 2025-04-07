@@ -373,8 +373,9 @@ class MultiInputEmbedder(nn.Module):
 
         embed_modalities = []
         image_modalities = []
+
         for modality in input_modalities:
-            if "embed" in modality:
+            if "embed" in modality or "embedding" in modality:
                 embed_modalities.append(modality)
             elif "image" in modality:
                 image_modalities.append(modality)

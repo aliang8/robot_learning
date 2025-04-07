@@ -88,3 +88,14 @@ class SinusoidalPositionEmbedding2d(nn.Module):
         )  # (1, C, H, W)
 
         return pos_embed
+
+
+def get_pos_encoding(pos_enc_type, embedding_dim, max_len):
+    if pos_enc_type == "sine":
+        pos_embed = create_sinusoidal_pos_embedding(
+            num_positions=max_len, dimension=embedding_dim
+        )
+    elif pos_enc_type == "learned":
+        pos_embed = nn.Embedding(max_len, embedding_dim)
+
+    return pos_embed

@@ -102,10 +102,7 @@ def process_state(x, cfg, env_name):
     if has_framestack:
         # take the last state!
         states = states[:, -1]
-
-    # for calvin, add scene_obs
-    # if env_name == "calvin":
-    #     x["states"] = tf.concat([x["states"], x["scene_obs"]], axis=-1)
+        
     return x
 
 

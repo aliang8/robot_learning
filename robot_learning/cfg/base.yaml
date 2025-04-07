@@ -45,6 +45,12 @@ log_level: 'info'
 save_key: null
 best_metric: 'max'
 
+# finetuning
+finetuning: False
+lora:
+  r: 8
+  alpha: 8
+
 clip_grad_norm: 1.0
 
 # optimizer and scheduling

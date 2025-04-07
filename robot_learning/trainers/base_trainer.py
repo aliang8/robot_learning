@@ -103,43 +103,39 @@ class BaseTrainer:
         )
         log(f"Using device: {self.device}")
 
-        # TODO:
+        self.wandb_run = None
         if self.cfg.mode == "train":
-            # if not self.cfg.load_from_ckpt:
-            self.log_dir = self.exp_dir / "logs"
-            self.ckpt_dir = self.exp_dir / "model_ckpts"
-            self.video_dir = self.exp_dir / "videos"
+            if not self.cfg.load_from_ckpt or self.cfg.finetuning:
+                self.log_dir = self.exp_dir / "logs"
+                self.ckpt_dir = self.exp_dir / "model_ckpts"
+                self.video_dir = self.exp_dir / "videos"
 
-            # create directories
-            self.ckpt_dir.mkdir(parents=True, exist_ok=True)
-            self.video_dir.mkdir(parents=True, exist_ok=True)
-            self.log_dir.mkdir(parents=True, exist_ok=True)
+                # create directories
+                self.ckpt_dir.mkdir(parents=True, exist_ok=True)
+                self.video_dir.mkdir(parents=True, exist_ok=True)
+                self.log_dir.mkdir(parents=True, exist_ok=True)
 
-            wandb_name = self.cfg.wandb.name
+                wandb_name = self.cfg.wandb.name
 
-            if self.cfg.use_wandb:
-                self.wandb_run = wandb.init(
-                    # set the wandb project where this run will be logged
-                    entity=self.cfg.wandb.entity,
-                    project=self.cfg.wandb.project,
-                    name=wandb_name,
-                    notes=self.cfg.wandb.notes,
-                    tags=[str(tag) for tag in self.cfg.wandb.tags],
-                    # track hyperparameters and run metadata
-                    config=omegaconf_to_dict(self.cfg),
-                    group=self.cfg.group_name,
-                )
-                wandb_url = self.wandb_run.get_url()
-                self.cfg.wandb.url = wandb_url  # add wandb url to config
-                log(f"wandb url: {wandb_url}")
-
-            else:
-                self.wandb_run = None
+                if self.cfg.use_wandb:
+                    self.wandb_run = wandb.init(
+                        # set the wandb project where this run will be logged
+                        entity=self.cfg.wandb.entity,
+                        project=self.cfg.wandb.project,
+                        name=wandb_name,
+                        notes=self.cfg.wandb.notes,
+                        tags=[str(tag) for tag in self.cfg.wandb.tags],
+                        # track hyperparameters and run metadata
+                        config=omegaconf_to_dict(self.cfg),
+                        group=self.cfg.group_name,
+                    )
+                    wandb_url = self.wandb_run.get_url()
+                    self.cfg.wandb.url = wandb_url  # add wandb url to config
+                    log(f"wandb url: {wandb_url}")
 
             # save config to yaml file
             OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
-        else:
-            self.wandb_run = None
+
 
         # create env
         # log(f"creating {self.cfg.env.env_name} environments...")
@@ -154,6 +150,7 @@ class BaseTrainer:
         log("loading train and eval datasets", "blue")
         # Pass distributed parameters to get_dataloader
         if cfg.retrieval:
+            # Use K retrieved trajectories for training
             cfg.data.train_frac = 1.0
             self.train_ds, self.eval_ds = get_dataloader(
                 cfg,

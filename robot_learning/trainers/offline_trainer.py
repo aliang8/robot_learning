@@ -8,9 +8,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import tqdm
-
-# from robot_learning.utils.rollouts import run_eval_rollouts
-from hand_demos.utils.rollouts import run_eval_rollouts
+import wandb
 from omegaconf import DictConfig
 from rich.pretty import pretty_repr
 
@@ -18,6 +16,7 @@ import robot_learning.utils.general_utils as gutl
 from robot_learning.data.dataclasses import Batch
 from robot_learning.trainers.base_trainer import BaseTrainer
 from robot_learning.utils.logger import log
+from robot_learning.utils.rollouts import run_eval_rollouts
 
 
 class OfflineTrainer(BaseTrainer):

@@ -122,6 +122,12 @@ class ActionHead(nn.Module):
             output = self.output_layer(x)
             output = self._apply_activation(output)
             return ActionOutput(actions=output)
+        
+    def _apply_activation(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply activation function if specified."""
+        if self.action_activation is not None:
+            return self.action_activation(x)
+        return x
 
 
 class BasePolicy(BaseModel):
