@@ -32,6 +32,7 @@ flow:
   device: cuda
   grid_size: 25
   max_query_points: 100
+  queries: [[0, 530, 350]]
 
 defaults:
   - local: default

@@ -213,9 +213,13 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             save_data_compressed(save_file, traj_data)
 
         for camera_type, images in camera_imgs.items():
-            img_file = traj_dir / f"{camera_type}_images.dat"
+            img_file = traj_dir / f"{camera_type}_processed_images.dat"
             if not img_file.exists():
                 save_data_compressed(img_file, processed_camera_imgs[camera_type])
+
+            img_file = traj_dir / f"{camera_type}_images.dat"
+            if not img_file.exists():
+                save_data_compressed(img_file, camera_imgs[camera_type])
 
             img_embed_file = (
                 traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
@@ -231,12 +235,14 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         if cfg.compute_2d_flow:
             flow_file = traj_dir / "2d_flow.dat"
             seg_masks_file = traj_dir / "seg_masks.dat"
+
             # Run cotracking on the external camera image
             if not flow_file.exists():
                 flow_traj_data, seg_masks = compute_flow_features(
                     image_predictor=image_predictor,
                     cotracker=cotracker,
                     text=cfg.flow.text_prompt,
+                    queries=np.array(cfg.flow.queries),
                     grounding_model_id=cfg.flow.grounding_model_id,
                     images=[camera_imgs["external"]],
                     device=device,
@@ -277,7 +283,7 @@ def main(cfg):
         traj_data = load_data_compressed(traj_dir / "traj_data.dat")
         num_transitions += len(traj_data["actions"])
         for camera_type in available_cameras:
-            images_file = traj_dir / f"{camera_type}_images.dat"
+            images_file = traj_dir / f"{camera_type}_processed_images.dat"
             if images_file.exists():
                 images = load_data_compressed(images_file)
                 traj_data[f"{camera_type}_images"] = images
