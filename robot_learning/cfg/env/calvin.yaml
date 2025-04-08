@@ -4,11 +4,11 @@ env_id: close_drawer
 state_dim: 15 # 39
 action_dim: 7
 
-max_episode_steps: 200
+max_episode_steps: 300
 action_scale: 1.0
 image_shape: [200, 200]
 
-num_envs: 30
+num_envs: 40
 
 defaults:
   - base
