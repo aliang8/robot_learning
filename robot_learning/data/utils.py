@@ -81,7 +81,9 @@ def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
         )
         for k in feature_keys
     }
-    log(f"Features: {features_dict}", "yellow")
+    for k, v in features_dict.items():
+        log(f"{k}: {v}", "yellow")
+
     trajectory_tfds = tf.data.Dataset.from_generator(
         generator, output_signature=features_dict
     )

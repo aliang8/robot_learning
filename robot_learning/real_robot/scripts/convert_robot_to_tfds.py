@@ -252,9 +252,9 @@ def main(cfg):
     dataset_name = create_dataset_name(cfg)
 
     # Create save directory
-    save_dir = Path(cfg.tfds_data_dir) / dataset_name
-    save_dir.mkdir(parents=True, exist_ok=True)
-    save_file = save_dir / cfg.task_name
+    save_dir = Path(cfg.tfds_data_dir) / cfg.env_name
+    save_file = save_dir / cfg.dataset_name
+    save_file.mkdir(parents=True, exist_ok=True)
 
     log(
         f"------------------- Saving dataset to {save_file} -------------------", "blue"
@@ -300,7 +300,7 @@ def main(cfg):
         if isinstance(v, np.ndarray):
             log(f"{k}: {v.shape}")
 
-    log(f"Total transitions: {num_transitions} collected", "green")
+    log(f"Total number of transitions: {num_transitions} collected", "green")
     save_dataset(processed_trajs, save_file)
 
 
