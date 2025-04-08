@@ -7,6 +7,7 @@ batch_size: 64
 framestack: 1
 save_imgs: False
 debug: False
+image_size: [128, 128] # for resizing the image data
 
 # raw data directory
 data_dir: ${paths.data_dir}/datasets/${env_name}/${dataset_name}
@@ -18,15 +19,16 @@ embedding_model: 'r3m'  # Options: 'r3m', 'resnet50', 'radio-h', etc.
 resnet_feature_map_layer: 'layer4'
 
 compute_2d_flow: False
+visualize_segmentation: False
 flow:
-  sam2_checkpoint_file: ${paths.root_dir}/../Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt
+  sam2_checkpoint_file: ${paths.root_dir}/Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt
   model_cfg_file: sam2.1_hiera_l.yaml
   grounding_model_id: IDEA-Research/grounding-dino-tiny
-  cotracker_ckpt_file: ${paths.root_dir}/../co-tracker/scaled_offline.pth
+  cotracker_ckpt_file: ${paths.root_dir}/co-tracker/scaled_offline.pth
 
   # setup the input image and text prompt for SAM 2 and Grounding DINO
       # VERY important: text queries need to be lowercased + end with a dot
-  text: "robot. objects." # TODO: this should change based on env
+  text_prompt: "robot. objects." # TODO: this should change based on env
   device: cuda
   grid_size: 25
   max_query_points: 100

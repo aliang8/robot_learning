@@ -31,7 +31,7 @@ import datetime
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
-from resolvers import *
+from robot_learning.resolvers import *
 
 from robot_learning.trainers import trainer_to_cls
 from robot_learning.utils.general_utils import omegaconf_to_dict, print_dict

@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Dict, List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import tqdm
@@ -52,9 +53,11 @@ def compute_flow_features(
     max_query_points: int = 100,
     images: List[np.ndarray] = None,
     device: str = "cuda",
+    visualize_segmentation: bool = False,
 ) -> List[Dict[str, np.ndarray]]:
     """Compute optical flow features for a sequence of images."""
     point_tracking_results = []
+    seg_masks = []
 
     for indx, video in enumerate(tqdm.tqdm(images, desc="computing 2d flow")):
         # Segment out the table
@@ -95,6 +98,42 @@ def compute_flow_features(
         viz = tracked_points["visibility"]
         mask = np.ones_like(viz)
 
+        if visualize_segmentation:
+            image = video[0] / 255.0
+            # Create figure with 2x2 grid
+            fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+            fig.suptitle("Segmentation Visualization")
+
+            # Original image
+            axes[0, 0].imshow(image)
+            axes[0, 0].set_title("Original Image")
+
+            # Table segmentation mask
+            axes[0, 1].imshow(table_mask, cmap="gray")
+            axes[0, 1].set_title("Table Segmentation")
+
+            # Object segmentation mask
+            axes[1, 0].imshow(segm_mask, cmap="viridis")
+            axes[1, 0].set_title("Object Segmentation")
+
+            # Overlay segmentation on original image
+            overlay = image.copy()
+            # Add colored overlay for table (red) and object (blue)
+            overlay[table_mask > 0.5] = [1.0, 0.0, 0.0]  # Red for table
+            overlay[segm_mask > 0.5] = [0.0, 0.0, 1.0]  # Blue for object
+            # Blend with original image
+            overlay = 0.7 * image + 0.3 * overlay
+
+            axes[1, 1].imshow(overlay)
+            axes[1, 1].set_title("Overlay")
+
+            for ax in axes.flatten():
+                ax.axis("off")
+
+            plt.tight_layout()
+            plt.savefig(f"debug_flow_{indx}.png")
+            plt.close()
+
         # Pad or truncate to max_query_points
         num_points = points.shape[1]
         if num_points < max_query_points:
@@ -115,7 +154,9 @@ def compute_flow_features(
             }
         )
 
-    return point_tracking_results
+        seg_masks.append(segm_mask)
+
+    return point_tracking_results, seg_masks
 
 
 def process_framestack(cfg, images: List[np.ndarray]) -> List[np.ndarray]:

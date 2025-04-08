@@ -5,6 +5,8 @@ Usage:
     python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
         env_name=robot \
         dataset_name=playdata0 \
+        compute_2d_flow=True \
+        flow.text_prompt="robot. objects." \
         debug=True
 """
 
@@ -37,7 +39,6 @@ from robot_learning.data.utils import (
     save_data_compressed,
     save_dataset,
 )
-from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.logger import log
 
 
@@ -96,7 +97,7 @@ def load_images(
         ]
         processed_images = np.array(processed_images)
 
-    return processed_images
+    return images, processed_images
 
 
 def load_metadata(data_file: str) -> Dict:
@@ -129,7 +130,7 @@ def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
     return camera_mapping
 
 
-def preprocess_robot_data(cfg: DictConfig, data_dir: str):
+def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     """
     Assumes robot data is stored in the following format:
     data_dir/
@@ -182,15 +183,16 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: str):
 
         # Initialize storage for images and embeddings
         camera_imgs = {}
+        processed_camera_imgs = {}
 
         # Process each available camera
         for camera_type, camera_dir in camera_mapping.items():
             is_depth = camera_type == "depth"
-            imgs = load_images(cfg, camera_dir, is_depth=is_depth)
+            imgs, processed_imgs = load_images(cfg, camera_dir, is_depth=is_depth)
 
             if imgs is not None:
                 camera_imgs[f"{camera_type}"] = imgs
-
+                processed_camera_imgs[f"{camera_type}"] = processed_imgs
         # Load metadata
         obs_dict = load_metadata(obs_dict_file)
         policy_out = load_metadata(policy_out_file)
@@ -213,7 +215,7 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: str):
         for camera_type, images in camera_imgs.items():
             img_file = traj_dir / f"{camera_type}_images.dat"
             if not img_file.exists():
-                save_data_compressed(img_file, images)
+                save_data_compressed(img_file, processed_camera_imgs[camera_type])
 
             img_embed_file = (
                 traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
@@ -228,24 +230,26 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: str):
 
         if cfg.compute_2d_flow:
             flow_file = traj_dir / "2d_flow.dat"
+            seg_masks_file = traj_dir / "seg_masks.dat"
+            # Run cotracking on the external camera image
             if not flow_file.exists():
-                flow_traj_data = compute_flow_features(
+                flow_traj_data, seg_masks = compute_flow_features(
                     image_predictor=image_predictor,
                     cotracker=cotracker,
                     text=cfg.flow.text_prompt,
                     grounding_model_id=cfg.flow.grounding_model_id,
-                    images=camera_imgs["external_images"],
+                    images=[camera_imgs["external"]],
                     device=device,
+                    visualize_segmentation=cfg.visualize_segmentation,
                 )
-                save_data_compressed(flow_file, flow_traj_data)
+                save_data_compressed(flow_file, flow_traj_data[0])
+                save_data_compressed(seg_masks_file, seg_masks[0])
 
     available_cameras = list(camera_mapping.keys())
     return traj_dirs, available_cameras
 
 
-@hydra.main(
-    version_base=None, config_name="convert_robot_to_tfds", config_path="../cfg"
-)
+@hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")
 def main(cfg):
     """Main function to convert replay buffer to TFDS format."""
     # Generate dataset name
@@ -260,8 +264,8 @@ def main(cfg):
         f"------------------- Saving dataset to {save_file} -------------------", "blue"
     )
 
-    data_dir = Path(cfg.data_dir) / cfg.env_name / cfg.dataset_name
-
+    data_dir = Path(cfg.data_dir)
+    log(f"Processing data from {data_dir}", "yellow")
     num_transitions = 0
     traj_dirs, available_cameras = preprocess_robot_data(cfg, data_dir)
 

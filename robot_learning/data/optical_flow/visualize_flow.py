@@ -1,25 +1,45 @@
-import os
+"""
+Usage:
+    python -m robot_learning.data.optical_flow.visualize_flow \
+        --data_dir=
+"""
 
+import os
+from pathlib import Path
+
+import hydra
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import tensorflow as tf
+from omegaconf import DictConfig
 from tqdm import tqdm
 
-from clam.utils.logger import log
+from robot_learning.data.utils import load_data_compressed
+from robot_learning.utils.logger import log
 
 
-def check_optical_flow():
-    data_dir = "/scr/shared/clam/tensorflow_datasets/tdmpc2-buffer_imgs_emb-r3m_flow_debug/mw-door-open-expert"
-    ds = tf.data.Dataset.load(str(data_dir))
+def visualize_flow(data_dir: str):
+    traj_dirs = sorted(list(Path(data_dir).glob("traj_*")))
+    num_trajs = len(traj_dirs)
 
-    vis_dir = os.path.join(data_dir, "flow_vis")
-    os.makedirs(vis_dir, exist_ok=True)
+    log(f"Found {num_trajs} trajectories", "green")
+    for i, traj in tqdm(
+        enumerate(traj_dirs), desc="Processing trajectories", total=num_trajs
+    ):
+        flow_file = traj / "2d_flow.dat"
+        if not flow_file.exists():
+            log(f"Skipping {traj} because it does not have a flow file", "red")
+            continue
 
-    log(f"Loaded {len(ds)} episodes", "green")
-    for i, data in tqdm(enumerate(ds), desc="Processing episodes", total=len(ds)):
-        images = data["images"]
-        points = data["points"]
-        points = points.numpy()
+        # TODO: this changes based on the env
+        img_file = traj / "external_images.dat"
+        if not img_file.exists():
+            log(f"Skipping {traj} because it does not have an image file", "red")
+            continue
+
+        flow_data = load_data_compressed(flow_file)
+        images = load_data_compressed(img_file)
+        points = flow_data["points"]
 
         # make video of frames and points and flow at each step
         fig, ax = plt.subplots(1, 1, figsize=(8, 8))
@@ -53,7 +73,7 @@ def check_optical_flow():
 
         # Save animation
         writer = animation.FFMpegWriter(fps=10)
-        anim.save(os.path.join(vis_dir, f"traj_flow_{i}.mp4"), writer=writer)
+        anim.save(traj / f"traj_flow_{i}.mp4", writer=writer)
         plt.close()
 
         if i > 10:
@@ -61,5 +81,9 @@ def check_optical_flow():
 
 
 if __name__ == "__main__":
-    # check_dataset()
-    check_optical_flow()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, required=True)
+    args = parser.parse_args()
+    visualize_flow(args.data_dir)

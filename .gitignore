@@ -8,3 +8,7 @@
 *.egg-info
 robot_learning/real_robot/outputs/*
 robot_learning/cfg/local/*
+Grounded-SAM-2/*
+co-tracker/*
+results/*
+outputs/*
