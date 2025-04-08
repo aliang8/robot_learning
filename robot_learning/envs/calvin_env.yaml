@@ -30,10 +30,10 @@ cameras:
     width: 84
     height: 84
 bullet_time_step: 240.0
-use_vr: False
+use_vr: false
 show_gui: false
 robot_cfg:
-  _target_: calvin_env.robot.robot.Robot
+  _target_: calvin.calvin_env.calvin_env.robot.robot.Robot
   filename: franka_panda/panda_longer_finger.urdf
   base_position:
   - -0.34
@@ -368,3 +368,4 @@ tasks:
     - base_link
     - table
     - drawer_link
+    

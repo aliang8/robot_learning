@@ -1,13 +1,15 @@
+import random
+
 import hydra
 import numpy as np
-from calvin_env.envs.play_table_env import PlayTableSimEnv
+from calvin.calvin_env.calvin_env.envs.play_table_env import PlayTableSimEnv
 from gym import spaces
 
 
 class SlideEnv(PlayTableSimEnv):
     def __init__(
         self,
-        target_task: str = "move_slider_left",
+        target_tasks: list,
         seed: int = 0,
         tasks: dict = {},
         **kwargs,
@@ -15,7 +17,7 @@ class SlideEnv(PlayTableSimEnv):
         super(SlideEnv, self).__init__(seed=seed, **kwargs)
         # For this example we will modify the observation to
         # only retrieve the end effector pose
-        self.target_task = target_task
+        self.target_tasks = target_tasks
         self.action_space = spaces.Box(low=-1, high=1, shape=(7,))
         self.observation_space = spaces.Box(low=-1, high=1, shape=(39,))
         # We can use the task utility to know if the task was executed correctly
@@ -23,6 +25,19 @@ class SlideEnv(PlayTableSimEnv):
 
     def reset(self):
         obs = super().reset()
+
+        # task setup
+        if "close_drawer" in self.target_tasks:  # move_door_rel = 0.12
+            self.scene.doors[1].reset(random.uniform(0.12, 0.2))
+        if "move_slider_left" in self.target_tasks:  # move_door_rel = 0.15
+            self.scene.doors[0].reset(random.uniform(0, 0.12))
+        if "turn_on_led" in self.target_tasks:
+            self.scene.lights[1].reset(0)
+        if "turn_on_lightbulb" in self.target_tasks:
+            self.scene.lights[0].reset(0)
+        if "lift_blue_block_table" in self.target_tasks:
+            pass # blue block is already initialized to be on the table in the config
+
         self.start_info = self.get_info()
         return obs
 
@@ -37,11 +52,15 @@ class SlideEnv(PlayTableSimEnv):
     def _success(self):
         """Returns a boolean indicating if the task was performed correctly"""
         current_info = self.get_info()
-        task_filter = [self.target_task]
-        task_info = self.tasks.get_task_info_for_set(
-            self.start_info, current_info, task_filter
-        )
-        return self.target_task in task_info
+
+        successes = []
+        for task in self.target_tasks:
+            task_info = self.tasks.get_task_info_for_set(
+                self.start_info, current_info, [task]
+            )
+            successes.append(task in task_info)
+
+        return all(successes)
 
     def _reward(self):
         """Returns the reward function that will be used
@@ -81,17 +100,3 @@ class SlideEnv(PlayTableSimEnv):
         done, d_info = self._termination()
         info.update(d_info)
         return obs, reward, False, info
-        # for using actions in joint space
-        # if len(env_action) == 8:
-        #     env_action = {"action": env_action, "type": "joint_rel"}
-
-        # self.robot.apply_action(env_action)
-        # for i in range(self.action_repeat):
-        #     self.p.stepSimulation(physicsClientId=self.cid)
-        # obs = self.get_obs()
-        # info = self.get_info()
-        # reward, r_info = self._reward()
-        # done, d_info = self._termination()
-        # info.update(r_info)
-        # info.update(d_info)
-        # return obs, reward, done, info

@@ -188,9 +188,12 @@ def make_calvin_envs(num_envs, env_id, **kwargs):
     if "calvin_data_dir" in kwargs and kwargs["calvin_data_dir"] is not None:
         # Update the data_path in the calvin_cfg, because this will only work with absolute paths.
         OmegaConf.update(calvin_cfg, "scene_cfg.data_path", kwargs["calvin_data_dir"])
+    
+    if isinstance(env_id, str):
+        env_id = [env_id]
 
     def env_fn(env_idx):
-        env = SlideEnv(seed=env_idx, target_task=env_id, **calvin_cfg)
+        env = SlideEnv(seed=env_idx, target_tasks=env_id, **calvin_cfg)
 
         # if kwargs["image_obs"]:
         #     env = ImageObservationWrapperv2(env, image_shape=kwargs["image_shape"])
@@ -198,6 +201,7 @@ def make_calvin_envs(num_envs, env_id, **kwargs):
         return env
 
     envs = [partial(env_fn, env_idx=i) for i in range(num_envs)]
+
     if num_envs == 1:
         envs = gym.vector.SyncVectorEnv(envs)
     else:
