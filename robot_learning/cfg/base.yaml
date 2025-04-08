@@ -14,7 +14,6 @@ wandb:
   notes: ''
   url: '' # gets set in the trainer
   tags: 
-  - 'clam'
   - '${run_id}'
 group_name: ''
 
@@ -86,10 +85,14 @@ accelerate:
   use: False
   use_fp16: False
 
+debug: False
+
 defaults:
   - env: calvin
   - data: base
   - local: default
+  - optimizer: adamw
+  - lr_scheduler: cosine_annealing
   - hydra: default  # set the directory where the output files get saved
   # - override hydra/hydra_logging: default
   - override hydra/launcher: local

@@ -6,14 +6,11 @@ log_rollout_videos: True
 data: 
   data_type: transitions
 
+use_separate_gripper: False
+gripper_pos_weight: 0.1
+
 name: bc
 hp_name: ${name}_mlp_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}
-
-lr_scheduler:
-  name: 'CosineAnnealingLR'
-  params:
-    T_max: ${num_updates}
-    eta_min: 3e-5
 
 defaults:
   - base

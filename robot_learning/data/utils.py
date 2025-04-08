@@ -1,6 +1,8 @@
+import pickle as pkl
 from pathlib import Path
 from typing import Dict, List, Union
 
+import blosc
 import numpy as np
 import tensorflow as tf
 
@@ -79,8 +81,25 @@ def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
         )
         for k in feature_keys
     }
-    log(f"Features: {features_dict}", "yellow")
+    for k, v in features_dict.items():
+        log(f"{k}: {v}", "yellow")
+
     trajectory_tfds = tf.data.Dataset.from_generator(
         generator, output_signature=features_dict
     )
-    tf.data.experimental.save(trajectory_tfds, str(save_file))
+    tf.data.Dataset.save(trajectory_tfds, str(save_file))
+
+
+def save_data_compressed(path, data):
+    log(f"Saving to {path}", "yellow")
+    with open(path, "wb") as f:
+        compressed_data = blosc.compress(pkl.dumps(data))
+        f.write(compressed_data)
+
+
+def load_data_compressed(path):
+    log(f"Loading from {path}", "yellow")
+    with open(path, "rb") as f:
+        compressed_data = f.read()
+        data = pkl.loads(blosc.decompress(compressed_data))
+        return data

@@ -1,5 +1,0 @@
-- dataset_name=robot_play
-- task_name=pick_up_green_block_lighting2
-- precompute_embeddings=True
-- save_imgs=True
-- embedding_model=dinov2_vitb14

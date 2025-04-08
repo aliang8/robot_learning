@@ -184,10 +184,11 @@ class BaseTrainer:
         # determine obs_shape based on the dataset
         batch = next(self.train_dataloader.as_numpy_iterator())
 
-        log("=" * 50)
+        log("=" * 100)
         log("Shapes of batch items:")
         for k, v in batch.items():
             log(f"{k}: {v.shape}, {v.dtype}, {v.min()}, {v.max()}, {v.mean()}")
+        log("=" * 100)
 
         # figure out how many update steps between each validation step
         if self.cfg.eval_every != -1:
@@ -211,9 +212,10 @@ class BaseTrainer:
 
         # count number of parameters
         num_params = sum(p.numel() for p in self.model.parameters())
-        log("=" * 50)
+        log("=" * 100)
         log(f"number of parameters: {num_params}")
         log(f"model: {self.model}")
+        log("=" * 100)
 
         # Initialize Accelerator
         if self.cfg.accelerate.use:
