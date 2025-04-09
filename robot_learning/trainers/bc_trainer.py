@@ -206,6 +206,7 @@ class BCTrainer(OfflineTrainer):
                 loss = loss.mean()
             else:
                 loss = self.loss_fn(action_preds.actions, batch.actions)
+                loss = loss.mean(-1) * batch.costs if self.cfg.model.weighted_loss else loss
                 loss = loss.mean()
 
             metrics["loss"] = loss.item()

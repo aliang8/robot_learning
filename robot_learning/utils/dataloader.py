@@ -220,15 +220,15 @@ def get_dataloader(
     env_id = cfg.env.env_id
 
     if cfg.retrieval:
-        # if expert trajectories are included in the retrieved dataset
-        if cfg.data.with_expert:
-            # TODO: fix these
-            # data_dir = data_dir / "retrieved_dataset_expert"
-            data_dir = data_dir / "retrieval_with_expert"
-        else:
-            # data_dir = data_dir / "retrieved_dataset"
-            data_dir = data_dir / "retrieval"
+        parent_dir = "retrieval"
 
+        if cfg.data.path_cost_weighting:
+            parent_dir += "_path_cost"
+        
+        if cfg.data.with_expert:
+            parent_dir += "_with_expert"
+
+        data_dir = data_dir / parent_dir
 
     log(f"Loading tfds dataset from: {data_dir}, env id: {env_id}")
     log(f"Dataset names: {dataset_names}")
