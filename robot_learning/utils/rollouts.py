@@ -98,7 +98,7 @@ def run_eval_rollouts(cfg: DictConfig, model: nn.Module, wandb_run=None):
 
     use_pretrained_img_embed = False
     for modality in cfg.model.input_modalities:
-        if "embedding" in modality:
+        if "emb" in modality:
             use_pretrained_img_embed = True
             break
 
@@ -274,6 +274,7 @@ def rollout_helper(
             "states": obs,
             "images": obs,
             "image_embeddings": None,
+            "external_img_embeds": None, # TODO: switch to this
             "timesteps": timesteps,
         }
 
@@ -301,6 +302,8 @@ def rollout_helper(
             # also add embeddings
             image_embeddings = img_embedder(images)
             model_inputs["image_embeddings"] = image_embeddings
+            model_inputs["external_img_embeds"] = image_embeddings
+            
 
         if cfg.model.name == "act_transformer":
             if cfg.env.image_obs:

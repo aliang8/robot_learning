@@ -171,9 +171,10 @@ def make_calvin_envs(num_envs, env_id, **kwargs):
     import os
 
     import gym
-    from clam.envs.calvin_env import SlideEnv
     from omegaconf import OmegaConf
     from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
+
+    from robot_learning.envs.calvin_env import SlideEnv
 
     # Get the directory of the current file
     current_dir = os.path.dirname(os.path.abspath(__file__))

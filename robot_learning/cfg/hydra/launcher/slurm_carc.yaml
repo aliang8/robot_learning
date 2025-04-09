@@ -25,7 +25,6 @@ partition: gpu
 account: yzhao010_1531
 # account: biyik_1165
 
-# gres: gpu
 # constraint: xeon-2640v4|xeon-6130|epyc-7513
 # constraint: epyc-7282
 # constraint: xeon-6130

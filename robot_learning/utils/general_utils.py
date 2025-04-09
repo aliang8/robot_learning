@@ -54,14 +54,13 @@ def print_dict(val, nesting: int = -4, start: bool = True):
 
 def to_device(x, device):
     if isinstance(x, np.ndarray):
-        return torch.tensor(x).to(device)
+        return torch.tensor(x, dtype=torch.float32).to(device)
     elif isinstance(x, torch.Tensor):
-        return x.to(device)
+        return x.to(device, dtype=torch.float32)
     elif isinstance(x, dict):
-        return {k: torch.tensor(v).to(device) for k, v in x.items()}
+        return {k: torch.tensor(v, dtype=torch.float32).to(device) for k, v in x.items()}
     else:
         import ipdb
-
         ipdb.set_trace()
 
 

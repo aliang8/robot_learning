@@ -222,10 +222,12 @@ def get_dataloader(
     if cfg.retrieval:
         # if expert trajectories are included in the retrieved dataset
         if cfg.data.with_expert:
-            data_dir = data_dir / "retrieved_dataset_expert"
+            # TODO: fix these
+            # data_dir = data_dir / "retrieved_dataset_expert"
+            data_dir = data_dir / "retrieval_with_expert"
         else:
-            data_dir = data_dir / "retrieved_dataset"
-
+            # data_dir = data_dir / "retrieved_dataset"
+            data_dir = data_dir / "retrieval"
 
 
     log(f"Loading tfds dataset from: {data_dir}, env id: {env_id}")

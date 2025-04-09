@@ -8,7 +8,8 @@ nodes: 1
 name: ${hydra.job.name}
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 
-gres: shard:20
+# partition: gpu
+gres: shard:1
 
 qos: null
 comment: null

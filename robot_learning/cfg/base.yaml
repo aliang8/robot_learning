@@ -51,35 +51,6 @@ lora:
   alpha: 8
 
 clip_grad_norm: 1.0
-
-# optimizer and scheduling
-optimizer:
-  name: 'AdamW'
-  params:
-    lr: 3e-4
-    eps: 1e-5
-    weight_decay: 1e-3
-    betas: [0.9, 0.999]
-  warmup_fraction: 0.1
-
-# lr scheduling
-# lr_scheduler:
-#   name: 'CosineAnnealingLR'
-#   params:
-#     T_max: ${num_updates}
-#     eta_min: 3e-5
-
-lr_scheduler:
-  name: 'ConstantLR'
-  params:
-    # factor: 1
-    verbose: False
-
-use_separate_gripper: False
-retrieval: False
-
-debug: False
-
 # config using huggingface accelerate for parallel training
 accelerate:
   use: False
