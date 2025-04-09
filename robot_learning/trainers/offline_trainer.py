@@ -39,7 +39,7 @@ class OfflineTrainer(BaseTrainer):
         train_iter = self.train_dataloader.repeat().as_numpy_iterator()
 
         for self.train_step in tqdm.tqdm(
-            range(self.cfg.num_updates),
+            range(self.start_update, self.cfg.num_updates),
             desc=f"{self.cfg.name} train batches",
             disable=self.local_rank != 0,  # Only show progress on rank 0
             total=self.cfg.num_updates,

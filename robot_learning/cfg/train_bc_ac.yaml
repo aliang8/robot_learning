@@ -12,7 +12,7 @@ data:
   batch_size: 64
 
 name: bc_ac
-hp_name: ${name}_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}
+hp_name: ${name}_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}_ft-${finetune}
 
 defaults:
   - base

@@ -40,6 +40,8 @@ num_eval_steps: 500
 load_from_ckpt: False 
 ckpt_step: null # to be filled in
 ckpt_file: null # to be filled in
+finetune: False
+resume_from_ckpt: False
 mode: 'train'
 log_level: 'info'
 save_key: null

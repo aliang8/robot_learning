@@ -12,7 +12,9 @@ Usage:
     python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
         env_name=robot \
         dataset_name=play_trajectories \
-        compute_2d_flow=False 
+        compute_2d_flow=False \
+        precompute_embeddings=True \
+        embedding_model=dinov2_vitb14 \
 """
 
 import os
