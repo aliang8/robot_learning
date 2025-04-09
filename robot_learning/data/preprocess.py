@@ -16,10 +16,7 @@ from robot_learning.utils.logger import log
 
 
 def compute_image_embeddings(
-    embedding_model: str,
-    images: List[np.ndarray],
-    device: str,
-    resnet_feature_map_layer: str = None,
+    embedder: ImageEmbedder, images: List[np.ndarray]
 ) -> List[np.ndarray]:
     """Compute embeddings for a sequence of images using the specified embedder.
 
@@ -27,12 +24,6 @@ def compute_image_embeddings(
         images: List of images, [T, H, W, C]
         device: Device to run the embeddings on
     """
-    embedder = ImageEmbedder(
-        model_name=embedding_model,
-        device=device,
-        feature_map_layer=resnet_feature_map_layer,
-    )
-
     log(f"Computing image embeddings using {embedder.model_name}")
     embeddings = []
 
@@ -153,9 +144,7 @@ def compute_flow_features(
                 ax.imshow(video[0])
 
                 for query in queries:
-                    ax.scatter(query[1], query[2], color="red", marker="x", s=20)
-
-                ax.scatter(530, 350, color="red", marker="x", s=100)
+                    ax.scatter(query[1], query[2], color="red", marker="x", s=100)
 
                 plt.savefig(f"debug_flow_{indx}.png")
                 plt.close()

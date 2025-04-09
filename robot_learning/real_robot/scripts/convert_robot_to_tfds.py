@@ -8,6 +8,11 @@ Usage:
         compute_2d_flow=True \
         flow.text_prompt="robot. objects." \
         debug=True
+
+    python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
+        env_name=robot \
+        dataset_name=play_trajectories \
+        compute_2d_flow=False 
 """
 
 import os
@@ -34,11 +39,11 @@ from robot_learning.data.preprocess import (
 )
 from robot_learning.data.utils import (
     create_dataset_name,
-    get_base_trajectory,
-    load_data_compressed,
+    raw_data_to_tfds,
     save_data_compressed,
     save_dataset,
 )
+from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.logger import log
 
 
@@ -134,13 +139,20 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     """
     Assumes robot data is stored in the following format:
     data_dir/
-        traj_0/
+        traj0/
             obs_dict.pkl
             policy_out.pkl
             depth_images/
             external_images/
     """
-    traj_dirs = sorted(glob(str(data_dir) + "/traj*"))
+    # hacky way to just get traj folders that aren't followed by _
+    traj_dirs = sorted(
+        [
+            str(d)
+            for d in Path(data_dir).glob("traj*")
+            if re.match(r"^traj(?!_)", d.name)
+        ]
+    )
     # filter only folders
     traj_dirs = [d for d in traj_dirs if os.path.isdir(d)]
     log(f"Processing {len(traj_dirs)} trajectories", "yellow")
@@ -161,6 +173,16 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     else:
         image_predictor = None
         cotracker = None
+
+    if cfg.precompute_embeddings:
+        img_embedder = ImageEmbedder(
+            model_name=cfg.embedding_model,
+            device=device,
+            feature_map_layer=cfg.resnet_feature_map_layer,
+        )
+        img_embedder = img_embedder.to(device)
+    else:
+        img_embedder = None
 
     for traj_idx, traj_dir in enumerate(
         tqdm.tqdm(traj_dirs, desc="Processing traj groups")
@@ -208,6 +230,7 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             "states": obs_dict["state"],
             "actions": policy_out["actions"],
             "rewards": np.zeros(len(policy_out["actions"])),
+            "qvel": obs_dict["qvel"],
         }
         if not save_file.exists():
             save_data_compressed(save_file, traj_data)
@@ -224,11 +247,13 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             img_embed_file = (
                 traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
             )
-            if not img_embed_file.exists() and camera_type != "depth":
+            if (
+                not img_embed_file.exists()
+                and camera_type != "depth"
+                and cfg.precompute_embeddings
+            ):
                 img_embeds = compute_image_embeddings(
-                    embedding_model=cfg.embedding_model,
-                    images=[images],
-                    device=device,
+                    embedder=img_embedder, images=[images]
                 )[0]
                 save_data_compressed(img_embed_file, img_embeds)
 
@@ -251,9 +276,6 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 save_data_compressed(flow_file, flow_traj_data[0])
                 save_data_compressed(seg_masks_file, seg_masks[0])
 
-    available_cameras = list(camera_mapping.keys())
-    return traj_dirs, available_cameras
-
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")
 def main(cfg):
@@ -272,46 +294,10 @@ def main(cfg):
 
     data_dir = Path(cfg.data_dir)
     log(f"Processing data from {data_dir}", "yellow")
-    num_transitions = 0
-    traj_dirs, available_cameras = preprocess_robot_data(cfg, data_dir)
+    preprocess_robot_data(cfg, data_dir)
 
-    processed_trajs = []
-
-    # Load trajectories
-    for traj_idx in tqdm.tqdm(range(len(traj_dirs)), desc="Loading trajectories"):
-        traj_dir = data_dir / f"traj_{traj_idx:06d}"
-        traj_data = load_data_compressed(traj_dir / "traj_data.dat")
-        num_transitions += len(traj_data["actions"])
-        for camera_type in available_cameras:
-            images_file = traj_dir / f"{camera_type}_processed_images.dat"
-            if images_file.exists():
-                images = load_data_compressed(images_file)
-                traj_data[f"{camera_type}_images"] = images
-
-            img_embeds_file = (
-                traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
-            )
-            if img_embeds_file.exists():
-                img_embeds = load_data_compressed(img_embeds_file)
-                traj_data[f"{camera_type}_images_embeds"] = img_embeds
-
-        flow_file = traj_dir / "2d_flow.dat"
-        if flow_file.exists():
-            flow_data = load_data_compressed(flow_file)
-            traj_data.update(flow_data)
-
-        processed_trajs.append(traj_data)
-
-    base_trajectory = get_base_trajectory(processed_trajs[0]["rewards"])
-    processed_trajs = [{**base_trajectory, **traj} for traj in processed_trajs]
-
-    traj = processed_trajs[0]
-    for k, v in traj.items():
-        if isinstance(v, np.ndarray):
-            log(f"{k}: {v.shape}")
-
-    log(f"Total number of transitions: {num_transitions} collected", "green")
-    save_dataset(processed_trajs, save_file)
+    new_traj_dirs = list(Path(data_dir).glob("traj_*"))
+    raw_data_to_tfds(new_traj_dirs, cfg.embedding_model, save_file)
 
 
 if __name__ == "__main__":

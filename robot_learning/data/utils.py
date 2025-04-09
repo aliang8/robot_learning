@@ -5,6 +5,7 @@ from typing import Dict, List, Union
 import blosc
 import numpy as np
 import tensorflow as tf
+import tqdm
 
 from robot_learning.utils.logger import log
 
@@ -59,6 +60,55 @@ def get_base_trajectory(rew: np.ndarray):
     trajectory["is_terminal"][-1] = 1
     trajectory["is_first"][0] = 1
     return trajectory
+
+
+def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str):
+    num_transitions = 0
+
+    # Load trajectories
+    available_cameras = []
+    traj_dir = traj_dirs[0]
+    for dat_file in Path(traj_dir).glob("*.dat"):
+        if "images" in dat_file.name and "processed" not in dat_file.name:
+            available_cameras.append(dat_file.name.split("_images")[0])
+    log(f"Available cameras: {available_cameras}", "yellow")
+
+    processed_trajs = []
+    for traj_dir in tqdm.tqdm(traj_dirs, desc="Loading trajectories"):
+        traj_dir = Path(traj_dir)
+        traj_data = load_data_compressed(traj_dir / "traj_data.dat")
+        num_transitions += len(traj_data["actions"])
+
+        for camera_type in available_cameras:
+            images_file = traj_dir / f"{camera_type}_processed_images.dat"
+            if images_file.exists():
+                images = load_data_compressed(images_file)
+                traj_data[f"{camera_type}_images"] = images
+
+            img_embeds_file = (
+                traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
+            )
+            if img_embeds_file.exists():
+                img_embeds = load_data_compressed(img_embeds_file)
+                traj_data[f"{camera_type}_images_embeds"] = img_embeds
+
+        flow_file = traj_dir / "2d_flow.dat"
+        if flow_file.exists():
+            flow_data = load_data_compressed(flow_file)
+            traj_data.update(flow_data)
+
+        processed_trajs.append(traj_data)
+
+    base_trajectory = get_base_trajectory(processed_trajs[0]["rewards"])
+    processed_trajs = [{**base_trajectory, **traj} for traj in processed_trajs]
+
+    traj = processed_trajs[0]
+    for k, v in traj.items():
+        if isinstance(v, np.ndarray):
+            log(f"{k}: {v.shape}")
+
+    log(f"Total number of transitions: {num_transitions} collected", "green")
+    save_dataset(processed_trajs, save_file)
 
 
 def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
