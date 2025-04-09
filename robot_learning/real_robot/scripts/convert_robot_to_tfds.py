@@ -274,7 +274,7 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                     visualize_segmentation=cfg.visualize_segmentation,
                 )
                 save_data_compressed(flow_file, flow_traj_data[0])
-                save_data_compressed(seg_masks_file, seg_masks[0])
+                # save_data_compressed(seg_masks_file, seg_masks[0])
 
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")

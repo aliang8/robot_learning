@@ -97,10 +97,16 @@ def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str)
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
 
+        for k, v in traj_data.items():
+            if isinstance(v, np.ndarray):
+                log(f"{k}: {v.shape}")
+
         processed_trajs.append(traj_data)
 
-    base_trajectory = get_base_trajectory(processed_trajs[0]["rewards"])
-    processed_trajs = [{**base_trajectory, **traj} for traj in processed_trajs]
+    for idx, traj in enumerate(processed_trajs):
+        base_trajectory = get_base_trajectory(traj["rewards"])
+        traj = {**base_trajectory, **traj}
+        processed_trajs[idx] = traj
 
     traj = processed_trajs[0]
     for k, v in traj.items():
