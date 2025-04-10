@@ -42,3 +42,14 @@ al_ds_name: ${fix_ds_name:${data.action_labeled_ds},${data.dataset_name},${data.
 input_modalities: ${model.input_modalities}
 
 apply_image_augmentation: False
+# data augmentation configs
+min_scale: 0.5
+max_scale: 1.0
+brightness_factor: 0.3
+contrast_factor: 0.3
+saturation_factor: 0.3
+hue_factor: 0.1
+
+random_flip: True
+random_crop: True
+color_jitter: False

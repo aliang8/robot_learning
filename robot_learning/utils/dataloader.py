@@ -282,16 +282,8 @@ def process_dataset(
                     partial(
                         _apply_image_augmentation,
                         image_key=key,
-                        random_flip=True,
-                        random_crop=True,
-                        color_jitter=True,
-                        min_scale=getattr(cfg, "min_scale", 0.5),
-                        max_scale=getattr(cfg, "max_scale", 1.0),
                         orig_size=img_shape,
-                        brightness_factor=getattr(cfg, "brightness_factor", 0.3),
-                        contrast_factor=getattr(cfg, "contrast_factor", 0.3),
-                        saturation_factor=getattr(cfg, "saturation_factor", 0.3),
-                        hue_factor=getattr(cfg, "hue_factor", 0.1),
+                        **cfg.data.augmentation_kwargs,
                     ),
                     num_parallel_calls=tf.data.AUTOTUNE,
                 )
