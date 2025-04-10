@@ -40,3 +40,5 @@ ds_name: ${fix_ds_name:${data.datasets},${data.dataset_name},${data.dataset_spli
 al_ds_name: ${fix_ds_name:${data.action_labeled_ds},${data.dataset_name},${data.action_labeled_ds_split}}
 
 input_modalities: ${model.input_modalities}
+
+apply_image_augmentation: False

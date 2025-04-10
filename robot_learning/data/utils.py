@@ -80,6 +80,9 @@ def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str)
         num_transitions += len(traj_data["actions"])
 
         for camera_type in available_cameras:
+            if camera_type == "depth":
+                continue
+
             images_file = traj_dir / f"{camera_type}_processed_images.dat"
             if images_file.exists():
                 images = load_data_compressed(images_file)

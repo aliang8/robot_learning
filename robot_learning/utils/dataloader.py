@@ -34,12 +34,107 @@ def add_new_fields(x, cfg):
     return x
 
 
+def _apply_image_augmentation(
+    x: tf.Tensor,
+    image_key: str = "images",
+    random_flip: bool = True,
+    random_crop: bool = True,
+    color_jitter: bool = True,
+    min_scale: float = 0.5,
+    max_scale: float = 1.0,
+    orig_size: List[int] = [84, 84],
+    brightness_factor: float = 0.3,
+    contrast_factor: float = 0.3,
+    saturation_factor: float = 0.3,
+    hue_factor: float = 0.1,
+) -> tf.Tensor:
+    """Apply image augmentations including random horizontal flip, random resize crop, and color jitter.
+
+    Args:
+        x: Input dictionary containing image tensor
+        image_key: Key for accessing images in the dictionary
+        random_flip: Whether to apply random horizontal flipping
+        random_crop: Whether to apply random resize cropping
+        color_jitter: Whether to apply color jittering
+        min_scale: Minimum scale for random resize crop (0.5 means crop to 50% of original size)
+        max_scale: Maximum scale for random resize crop (1.0 means use original size)
+        orig_size: Original image size to crop back to
+        brightness_factor: Maximum brightness adjustment factor
+        contrast_factor: Maximum contrast adjustment factor
+        saturation_factor: Maximum saturation adjustment factor
+        hue_factor: Maximum hue adjustment factor
+    """
+    if image_key not in x:
+        return x
+
+    images = x[image_key]
+    channel_first = len(images.shape) == 4 and images.shape[1] == 3
+
+    # Convert orig_size to both float and int tensors to avoid casting issues
+    orig_size_float = tf.convert_to_tensor(orig_size, dtype=tf.float32)
+    orig_size_int = tf.convert_to_tensor(orig_size, dtype=tf.int32)
+
+    if channel_first:
+        images = tf.transpose(images, perm=[0, 2, 3, 1])
+
+    def _random_crop(img):
+        # Random crop using tf's built-in function
+        scale = tf.random.uniform([], min_scale, max_scale)
+        scaled_size = tf.cast(orig_size_float * scale, tf.int32)
+        img = tf.image.resize_with_crop_or_pad(img, scaled_size[0], scaled_size[1])
+        img = tf.image.random_crop(img, [scaled_size[0], scaled_size[1], 3])
+        img = tf.image.resize(img, orig_size_int)
+        return img
+
+    def _random_flip(img):
+        return tf.image.random_flip_left_right(img)
+
+    def _color_jitter(img):
+        # Apply color jittering in random order
+        jitter_order = tf.random.shuffle(tf.range(4))
+
+        for idx in jitter_order:
+            if idx == 0:  # brightness
+                img = tf.image.random_brightness(img, brightness_factor)
+            elif idx == 1:  # contrast
+                img = tf.image.random_contrast(
+                    img, 1 - contrast_factor, 1 + contrast_factor
+                )
+            elif idx == 2:  # saturation
+                img = tf.image.random_saturation(
+                    img, 1 - saturation_factor, 1 + saturation_factor
+                )
+            else:  # hue
+                img = tf.image.random_hue(img, hue_factor)
+
+        # Ensure values are in valid range
+        img = tf.clip_by_value(img, 0.0, 1.0)
+        return img
+
+    # Apply augmentations
+    if random_crop:
+        images = tf.map_fn(_random_crop, images, fn_output_signature=tf.float32)
+
+    if random_flip:
+        images = tf.map_fn(_random_flip, images, fn_output_signature=tf.float32)
+
+    if color_jitter:
+        images = tf.map_fn(_color_jitter, images, fn_output_signature=tf.float32)
+
+    if channel_first:
+        images = tf.transpose(images, perm=[0, 3, 1, 2])
+
+    x[image_key] = images
+    return x
+
+
 def process_image(
     x,
     channel_first: bool = False,
     image_shape: List[int] = [84, 84],
     image_key: str = "images",
 ):
+    """Process images with optional augmentation."""
     if image_key not in x:
         return x
 
@@ -53,8 +148,7 @@ def process_image(
             images = einops.rearrange(images, "B F H W C -> B (F C) H W")
         else:
             # reshape images here
-            # TODO: remove this later
-            images = tf.image.resize(images, OmegaConf.to_container(image_shape))
+            images = tf.image.resize(images, image_shape)
             images = tf.transpose(images, perm=[0, 3, 1, 2])
 
     if tf.reduce_max(images) > 1:
@@ -98,6 +192,7 @@ def process_dataset(
     shuffle: bool = True,
     env_name: str = None,
     drop_remainder: bool = False,
+    apply_image_augmentation: bool = False,
 ):
     """
     Applies transformations to base tfds such as batching, shuffling, etc.
@@ -139,14 +234,16 @@ def process_dataset(
         partial(process_state, cfg=cfg, env_name=env_name),
         num_parallel_calls=tf.data.AUTOTUNE,
     )
-    # process image in case we need to use it
+
+    # Process images WITHOUT augmentation first
+    img_shape = OmegaConf.to_container(cfg.image_shape)
     for key in cfg.input_modalities:
         if ("img" in key or "image" in key) and "embed" not in key:
             ds = ds.map(
                 partial(
                     process_image,
                     channel_first=True,
-                    image_shape=cfg.image_shape,
+                    image_shape=img_shape,
                     image_key=key,
                 ),
                 num_parallel_calls=tf.data.AUTOTUNE,
@@ -176,6 +273,28 @@ def process_dataset(
         ds = ds.flat_map(tf.data.Dataset.from_tensor_slices)
     else:
         raise ValueError(f"unknown data type: {cfg.data_type}")
+
+    # Now apply augmentation AFTER n-step processing
+    if apply_image_augmentation:
+        for key in cfg.input_modalities:
+            if ("img" in key or "image" in key) and "embed" not in key:
+                ds = ds.map(
+                    partial(
+                        _apply_image_augmentation,
+                        image_key=key,
+                        random_flip=True,
+                        random_crop=True,
+                        color_jitter=True,
+                        min_scale=getattr(cfg, "min_scale", 0.5),
+                        max_scale=getattr(cfg, "max_scale", 1.0),
+                        orig_size=img_shape,
+                        brightness_factor=getattr(cfg, "brightness_factor", 0.3),
+                        contrast_factor=getattr(cfg, "contrast_factor", 0.3),
+                        saturation_factor=getattr(cfg, "saturation_factor", 0.3),
+                        hue_factor=getattr(cfg, "hue_factor", 0.1),
+                    ),
+                    num_parallel_calls=tf.data.AUTOTUNE,
+                )
 
     # shuffle the full dataset one more time
     if shuffle:  # shuffle here is for transitions
@@ -307,7 +426,11 @@ def get_dataloader(
             )
 
         train_ds[ds_name] = process_dataset(
-            cfg_train, ds, env_name=cfg.env.env_name, shuffle=shuffle
+            cfg_train,
+            ds,
+            env_name=cfg.env.env_name,
+            shuffle=shuffle,
+            apply_image_augmentation=cfg.data.apply_image_augmentation,
         )
 
     log("Creating eval datasets")
@@ -317,7 +440,11 @@ def get_dataloader(
     cfg_eval.num_examples = -1
     for i, ds_name in enumerate(dataset_names):
         eval_ds[ds_name] = process_dataset(
-            cfg_eval, eval_ds[ds_name], env_name=cfg.env.env_name, shuffle=False
+            cfg_eval,
+            eval_ds[ds_name],
+            env_name=cfg.env.env_name,
+            shuffle=False,
+            apply_image_augmentation=False,
         )
 
     return train_ds, eval_ds
