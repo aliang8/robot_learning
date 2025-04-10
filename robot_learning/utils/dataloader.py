@@ -283,7 +283,7 @@ def process_dataset(
                         _apply_image_augmentation,
                         image_key=key,
                         orig_size=img_shape,
-                        **cfg.data.augmentation_kwargs,
+                        **cfg.augmentation_kwargs,
                     ),
                     num_parallel_calls=tf.data.AUTOTUNE,
                 )

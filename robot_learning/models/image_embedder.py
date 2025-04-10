@@ -332,7 +332,7 @@ class ImageEmbedder(nn.Module):
                         )
 
                 embeddings = spatial_features if self.use_spatial_features else summary
-        elif self.model_name == "resnet50":
+        elif self.model_name in self.RESNET_CONFIGS:
             embeddings = self.model(processed)["feature_map"]
             if self.feature_map_layer == "avgpool":
                 embeddings = embeddings.flatten(1)
