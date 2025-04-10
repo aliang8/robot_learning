@@ -403,32 +403,39 @@ class MultiInputEmbedder(nn.Module):
             input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
-            # Create custom conv network to embed the images
-            encoder_kwargs = None
-            if "encoder" not in cfg:
-                # TODO: check this
-                encoder_kwargs = {
-                    "out_channels": [64, 128, 128, 256, 256, cfg.input_embed_dim],
-                    "kernel_size": [3] * 6,  # 3x3 kernel for all layers
-                    "stride": [1] * 6,  # stride of 1 for all layers
-                    "padding": [1] * 6,  # padding of 1 for all layers
-                    "batch_norm": True,
-                    "residual_layer": False,
-                    "dropout": 0.1,
-                }
-                encoder_kwargs = OmegaConf.create(encoder_kwargs)
-            else:
-                encoder_kwargs = cfg.encoder
+            if cfg.use_custom_cnn:
+                # Create custom conv network to embed the images
+                encoder_kwargs = None
+                if "encoder" not in cfg:
+                    # TODO: check this
+                    encoder_kwargs = {
+                        "out_channels": [64, 128, 128, 256, 256, cfg.input_embed_dim],
+                        "kernel_size": [3] * 6,  # 3x3 kernel for all layers
+                        "stride": [1] * 6,  # stride of 1 for all layers
+                        "padding": [1] * 6,  # padding of 1 for all layers
+                        "batch_norm": True,
+                        "residual_layer": False,
+                        "dropout": 0.1,
+                    }
+                    encoder_kwargs = OmegaConf.create(encoder_kwargs)
+                else:
+                    encoder_kwargs = cfg.encoder
 
-            # TODO: add impala cnn back
-            image_embedder, image_embedding_dim = make_conv_net(
-                image_shape,
-                output_embedding_dim=cfg.embedding_dim,
-                net_kwargs=encoder_kwargs,
-                apply_output_head=True,
-            )
+                # TODO: add impala cnn back
+                image_embedder, image_embedding_dim = make_conv_net(
+                    image_shape,
+                    output_embedding_dim=cfg.embedding_dim,
+                    net_kwargs=encoder_kwargs,
+                    apply_output_head=True,
+                )
+                input_dim += cfg.embedding_dim
+            else:
+                image_embedder = ImageEmbedder(
+                    model_name=cfg.embedding_model,
+                    device="cuda" if torch.cuda.is_available() else "cpu",
+                )
+                cfg.embedding_dim = image_embedder.output_dim
             self.embedders[modality] = image_embedder
-            input_dim += cfg.embedding_dim
 
         self.embedders = nn.ModuleDict(self.embedders)
 

@@ -276,6 +276,10 @@ def process_dataset(
 
     # Now apply augmentation AFTER n-step processing
     if apply_image_augmentation:
+        log("Applying image augmentations", "yellow")
+        for k, v in cfg.augmentation_kwargs.items():
+            log(f"\t{k}: {v}", "yellow")
+
         for key in cfg.input_modalities:
             if ("img" in key or "image" in key) and "embed" not in key:
                 ds = ds.map(

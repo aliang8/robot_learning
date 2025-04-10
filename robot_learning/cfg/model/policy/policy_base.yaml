@@ -22,6 +22,9 @@ use_separate_gripper: ${use_separate_gripper}
 arm_loss_weight: 1.0
 gripper_loss_weight: 1.0
 
+use_pretrained_embeddings: True
+use_custom_cnn: False
+
 input_modalities:
   - states
 
