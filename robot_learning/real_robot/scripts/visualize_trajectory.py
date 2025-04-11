@@ -25,7 +25,6 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import tqdm
-
 from clam.utils.logger import log
 
 

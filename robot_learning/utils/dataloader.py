@@ -221,12 +221,12 @@ def get_dataloader(
 
     if cfg.retrieval:
         parent_dir = "retrieval"
-
-        if cfg.data.path_cost_weighting:
-            parent_dir += "_path_cost"
         
         if cfg.data.with_expert:
             parent_dir += "_with_expert"
+        
+        if cfg.data.two_step:
+            parent_dir += "_two_step"
 
         data_dir = data_dir / parent_dir
 
