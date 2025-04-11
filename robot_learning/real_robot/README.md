@@ -36,7 +36,7 @@ python3 -m robot_learning.main --config-name=train_bc_ac \
     model.gaussian_policy=True \
     model.embedding_model=dinov2_vitb14 \
     model.gripper_loss_weight=5 \
-    data.seq_len=20 \
+    data.seq_len=5 \
     wandb.project=clam-robot \
     model.use_only_gripper_state=False
 ```

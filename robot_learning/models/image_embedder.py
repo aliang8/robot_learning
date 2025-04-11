@@ -434,7 +434,11 @@ class MultiInputEmbedder(nn.Module):
                     model_name=cfg.embedding_model,
                     device="cuda" if torch.cuda.is_available() else "cpu",
                 )
+                for param in image_embedder.parameters():
+                    param.requires_grad = False
+                image_embedder.eval()
                 cfg.embedding_dim = image_embedder.output_dim
+                input_dim += cfg.embedding_dim
             self.embedders[modality] = image_embedder
 
         self.embedders = nn.ModuleDict(self.embedders)

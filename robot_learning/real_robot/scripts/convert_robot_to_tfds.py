@@ -11,10 +11,9 @@ Usage:
 
     python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
         env_name=robot \
-        dataset_name=play_trajectories \
+        dataset_name=reach_green_block \
         compute_2d_flow=False \
-        precompute_embeddings=True \
-        embedding_model=dinov2_vitb14 \
+        precompute_embeddings=False
 """
 
 import os
@@ -211,30 +210,35 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
 
         # Process each available camera
         for camera_type, camera_dir in camera_mapping.items():
+            # skipping depth camera for now
+            if camera_type == "depth":
+                continue
+
             is_depth = camera_type == "depth"
             imgs, processed_imgs = load_images(cfg, camera_dir, is_depth=is_depth)
 
             if imgs is not None:
                 camera_imgs[f"{camera_type}"] = imgs
                 processed_camera_imgs[f"{camera_type}"] = processed_imgs
-        # Load metadata
-        obs_dict = load_metadata(obs_dict_file)
-        policy_out = load_metadata(policy_out_file)
-        trajectories.append([obs_dict, policy_out, camera_imgs])
 
         # Save to .dat format
-        traj_dir = data_dir / f"traj_{traj_idx:06d}"
+        traj_dir = data_dir / "processed_trajs" / f"traj_{traj_idx:06d}"
         traj_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save metadata for each trajectory
+        # Load metadata
         save_file = traj_dir / "traj_data.dat"
-        traj_data = {
-            "states": obs_dict["state"],
-            "actions": policy_out["actions"],
-            "rewards": np.zeros(len(policy_out["actions"])),
-            "qvel": obs_dict["qvel"],
-        }
         if not save_file.exists():
+            obs_dict = load_metadata(obs_dict_file)
+            policy_out = load_metadata(policy_out_file)
+            trajectories.append([obs_dict, policy_out, camera_imgs])
+
+            # Save metadata for each trajectory
+            traj_data = {
+                "states": obs_dict["state"],
+                "actions": policy_out["actions"],
+                "rewards": np.zeros(len(policy_out["actions"])),
+                "qvel": obs_dict["qvel"],
+            }
             save_data_compressed(save_file, traj_data)
 
         for camera_type, images in camera_imgs.items():
@@ -298,8 +302,8 @@ def main(cfg):
     log(f"Processing data from {data_dir}", "yellow")
     preprocess_robot_data(cfg, data_dir)
 
-    new_traj_dirs = list(Path(data_dir).glob("traj_*"))
-    raw_data_to_tfds(new_traj_dirs, cfg.embedding_model, save_file)
+    processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
+    raw_data_to_tfds(processed_traj_dirs, cfg.embedding_model, save_file)
 
 
 if __name__ == "__main__":
