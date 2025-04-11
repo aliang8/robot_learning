@@ -441,8 +441,7 @@ class MultiInputEmbedder(nn.Module):
                 for param in image_embedder.parameters():
                     param.requires_grad = False
                 image_embedder.eval()
-                cfg.embedding_dim = image_embedder.output_dim
-                input_dim += cfg.embedding_dim
+                input_dim += image_embedder.output_dim
             self.embedders[modality] = image_embedder
 
         self.embedders = nn.ModuleDict(self.embedders)

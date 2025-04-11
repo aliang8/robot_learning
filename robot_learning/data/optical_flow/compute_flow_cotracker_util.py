@@ -170,7 +170,9 @@ def generate_point_tracks(
         queries = torch.from_numpy(queries).float().to(device)
 
     if queries is not None:
-        pred_tracks, pred_visibility = cotracker(video, queries=queries[None])
+        pred_tracks, pred_visibility = cotracker(
+            video, queries=queries[None], backward_tracking=True
+        )
     else:
         pred_tracks, pred_visibility = cotracker(
             video,

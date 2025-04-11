@@ -236,18 +236,19 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         # Load metadata
         save_file = traj_dir / "traj_data.dat"
         if not save_file.exists():
-            obs_dict = load_metadata(obs_dict_file)
-            policy_out = load_metadata(policy_out_file)
-            trajectories.append([obs_dict, policy_out, camera_imgs])
+            if obs_dict_file.exists():
+                obs_dict = load_metadata(obs_dict_file)
+                policy_out = load_metadata(policy_out_file)
+                trajectories.append([obs_dict, policy_out, camera_imgs])
 
-            # Save metadata for each trajectory
-            traj_data = {
-                "states": obs_dict["state"],
-                "actions": policy_out["actions"],
-                "rewards": np.zeros(len(policy_out["actions"])),
-                "qvel": obs_dict["qvel"],
-            }
-            save_data_compressed(save_file, traj_data)
+                # Save metadata for each trajectory
+                traj_data = {
+                    "states": obs_dict["state"],
+                    "actions": policy_out["actions"],
+                    "rewards": np.zeros(len(policy_out["actions"])),
+                    "qvel": obs_dict["qvel"],
+                }
+                save_data_compressed(save_file, traj_data)
 
         for camera_type, images in camera_imgs.items():
             img_file = traj_dir / f"{camera_type}_processed_images.dat"
@@ -282,19 +283,54 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 queries = None
 
             # Run cotracking on the external camera image
-            if not flow_file.exists():
-                flow_traj_data, seg_masks = compute_flow_features(
-                    image_predictor=image_predictor,
-                    cotracker=cotracker,
-                    text=cfg.flow.text_prompt,
-                    queries=queries,
-                    grounding_model_id=cfg.flow.grounding_model_id,
-                    images=[camera_imgs["external"]],
-                    device=device,
-                    visualize_segmentation=cfg.visualize_segmentation,
-                )
-                save_data_compressed(flow_file, flow_traj_data[0])
-                # save_data_compressed(seg_masks_file, seg_masks[0])
+            # if not flow_file.exists():
+
+            video = camera_imgs["external"]
+            h, w = video.shape[1], video.shape[2]  # 1080, 1920
+
+            # Calculate target height for 1920 width to match 480:640 aspect ratio
+            # 640/480 = 1920/target_h
+            target_h = int(1920 * (480 / 640))  # = 1440
+
+            # Calculate padding needed
+            pad_h = target_h - h  # 1440 - 1080 = 360
+            pad_top = pad_h // 2  # 180
+            pad_bottom = pad_h - pad_top  # 180
+
+            # Add padding to top and bottom (black padding)
+            video = np.pad(
+                video,
+                (
+                    (0, 0),  # time dimension
+                    (pad_top, pad_bottom),  # height dimension
+                    (0, 0),  # width dimension
+                    (0, 0),
+                ),  # channels
+                mode="constant",
+                constant_values=0,
+            )
+
+            # save image of the first frame
+            first_frame = video[0]
+            first_frame_file = traj_dir / "first_frame.png"
+            Image.fromarray(first_frame).save(first_frame_file)
+
+            import ipdb
+
+            ipdb.set_trace()
+
+            flow_traj_data, seg_masks = compute_flow_features(
+                image_predictor=image_predictor,
+                cotracker=cotracker,
+                text=cfg.flow.text_prompt,
+                queries=queries,
+                grounding_model_id=cfg.flow.grounding_model_id,
+                images=[camera_imgs["external"]],
+                device=device,
+                visualize_segmentation=cfg.visualize_segmentation,
+            )
+            save_data_compressed(flow_file, flow_traj_data[0])
+            # save_data_compressed(seg_masks_file, seg_masks[0])
 
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")

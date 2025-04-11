@@ -35,6 +35,10 @@ flow:
   max_query_points: 150
   queries: null #[[0, 530, 350]]
 
+  # left gripper, right gripper, center
+  # queries: [[521,338],[575,325],[561,282]]
+
+
 defaults:
   - local: default
   - _self_

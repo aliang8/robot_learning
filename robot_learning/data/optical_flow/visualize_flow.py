@@ -24,7 +24,7 @@ def visualize_flow(data_dir: str):
 
     log(f"Found {num_trajs} trajectories", "green")
     for i, traj in tqdm(
-        enumerate(traj_dirs[:2]), desc="Processing trajectories", total=num_trajs
+        enumerate(traj_dirs[:8]), desc="Processing trajectories", total=num_trajs
     ):
         flow_file = traj / "2d_flow_query.dat"
         if not flow_file.exists():

@@ -161,11 +161,15 @@ def compute_flow_features(
             viz = viz[:, :max_query_points]
             mask = mask[:, :max_query_points]
 
+        W, H = video.shape[2], video.shape[1]
+        points_normalized = points / np.array([W, H])
+
         point_tracking_results.append(
             {
                 "points": points,
                 "points_visibility": viz,
                 "points_mask": mask,
+                "points_normalized": points_normalized,
             }
         )
 
