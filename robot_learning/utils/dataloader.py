@@ -23,7 +23,7 @@ def episode_to_step_custom(episode, size, shift):
 
 # add additional fields to the dataset
 def add_new_fields(x, cfg):
-    x["mask"] = tf.ones_like(x["actions"])
+    x["mask"] = tf.ones(tf.shape(x["actions"])[0])
     x["timestep"] = tf.range(tf.shape(x["actions"])[0])
 
     if "points" in x:
@@ -340,6 +340,7 @@ def get_dataloader(
     for ds_name in dataset_names:
         save_file = data_dir / cfg.data.dataset_name / ds_name
         ds = tf.data.Dataset.load(str(save_file))
+
         if data_cfg.load_latent_actions:
             mapping_file = save_file / "la_map.json"
 

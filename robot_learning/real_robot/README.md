@@ -39,6 +39,21 @@ python3 -m robot_learning.main --config-name=train_bc_ac \
     data.seq_len=5 \
     wandb.project=clam-robot \
     model.use_only_gripper_state=False
+
+
+python3 -m robot_learning.main --config-name=train_bc_ac \
+    env=robot \
+    data.dataset_name=robot \
+    data.datasets=[reach_green_block] \
+    data.num_trajs=-1 \
+    run_eval_rollouts=False \
+    model.input_modalities=[external_images,over_shoulder_images] \
+    model.gaussian_policy=True \
+    model.embedding_model=dinov2_vitb14 \
+    model.gripper_loss_weight=5 \
+    data.seq_len=5 \
+    wandb.project=clam-robot \
+    model.use_only_gripper_state=False
 ```
 
 ## Deploying the robot

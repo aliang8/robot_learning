@@ -137,7 +137,7 @@ class BCTrainer(OfflineTrainer):
                     states = torch.cat([states[:, :, :3], states[:, :, -1:]], dim=-1)
 
         model_inputs = {k: getattr(batch, k) for k in self.cfg.model.input_modalities}
-        model_inputs["states"] = states
+        model_inputs["states"] = states.float()
         model_inputs["timesteps"] = batch.timestep
 
         action_preds = self.model(model_inputs)
