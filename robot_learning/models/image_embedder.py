@@ -390,17 +390,21 @@ class MultiInputEmbedder(nn.Module):
             self.embedders["states"] = state_embedder
             input_dim += cfg.embedding_dim
 
-        for modality in embed_modalities:
-            # self.embedders[modality] = nn.Sequential(
-            #     nn.Linear(
-            #         EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
-            #     ),
-            #     nn.GELU(),
-            #     nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-            # )
-            self.embedders[modality] = nn.Identity()
-            # input_dim += cfg.embedding_dim
-            input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
+        # if there is just one embed modality, just downproject
+        if len(embed_modalities) == 1:
+            self.embedders[embed_modalities[0]] = nn.Sequential(
+                nn.Linear(
+                    EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
+                ),
+                nn.GELU(),
+                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            )
+            input_dim += cfg.embedding_dim
+        else:
+            for modality in embed_modalities:
+                self.embedders[modality] = nn.Identity()
+                # input_dim += cfg.embedding_dim
+                input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
             if cfg.use_custom_cnn:
@@ -446,6 +450,7 @@ class MultiInputEmbedder(nn.Module):
         # if only one modality, no need for fusion
         if len(self.input_modalities) == 1:
             self.fusion_network = nn.Identity()
+            self.output_dim = input_dim
         else:
             self.fusion_network = nn.Sequential(
                 nn.Linear(input_dim, cfg.embedding_dim),
@@ -453,7 +458,7 @@ class MultiInputEmbedder(nn.Module):
                 nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
             )
 
-        self.output_dim = cfg.embedding_dim
+            self.output_dim = cfg.embedding_dim
 
     def forward(
         self,
