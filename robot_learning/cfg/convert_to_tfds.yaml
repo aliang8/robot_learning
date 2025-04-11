@@ -20,6 +20,7 @@ resnet_feature_map_layer: 'layer4'
 
 compute_2d_flow: False
 visualize_segmentation: False
+save_dataset: False
 flow:
   sam2_checkpoint_file: ${paths.root_dir}/Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt
   model_cfg_file: sam2.1_hiera_l.yaml
@@ -31,8 +32,8 @@ flow:
   text_prompt: "robot. objects." # TODO: this should change based on env
   device: cuda
   grid_size: 25
-  max_query_points: 100
-  queries: [[0, 530, 350]]
+  max_query_points: 150
+  queries: null #[[0, 530, 350]]
 
 defaults:
   - local: default

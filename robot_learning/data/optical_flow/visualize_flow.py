@@ -19,14 +19,14 @@ from robot_learning.utils.logger import log
 
 
 def visualize_flow(data_dir: str):
-    traj_dirs = sorted(list(Path(data_dir).glob("traj_*")))
+    traj_dirs = sorted(list(Path(data_dir).glob("*traj_*")))
     num_trajs = len(traj_dirs)
 
     log(f"Found {num_trajs} trajectories", "green")
     for i, traj in tqdm(
-        enumerate(traj_dirs), desc="Processing trajectories", total=num_trajs
+        enumerate(traj_dirs[:2]), desc="Processing trajectories", total=num_trajs
     ):
-        flow_file = traj / "2d_flow.dat"
+        flow_file = traj / "2d_flow_query.dat"
         if not flow_file.exists():
             log(f"Skipping {traj} because it does not have a flow file", "red")
             continue

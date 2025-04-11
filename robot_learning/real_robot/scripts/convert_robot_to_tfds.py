@@ -14,6 +14,14 @@ Usage:
         dataset_name=reach_green_block \
         compute_2d_flow=False \
         precompute_embeddings=False
+
+
+    python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
+        env_name=robot \
+        dataset_name=hand_demos \
+        compute_2d_flow=True \
+        precompute_embeddings=False \
+        flow.queries=[[0,430,350]]
 """
 
 import os
@@ -264,8 +272,14 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 save_data_compressed(img_embed_file, img_embeds)
 
         if cfg.compute_2d_flow:
-            flow_file = traj_dir / "2d_flow.dat"
+            suffix = "query" if cfg.flow.queries else "all"
+            flow_file = traj_dir / f"2d_flow_{suffix}.dat"
             seg_masks_file = traj_dir / "seg_masks.dat"
+
+            if cfg.flow.queries:
+                queries = np.array(cfg.flow.queries)
+            else:
+                queries = None
 
             # Run cotracking on the external camera image
             if not flow_file.exists():
@@ -273,7 +287,7 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                     image_predictor=image_predictor,
                     cotracker=cotracker,
                     text=cfg.flow.text_prompt,
-                    queries=np.array(cfg.flow.queries),
+                    queries=queries,
                     grounding_model_id=cfg.flow.grounding_model_id,
                     images=[camera_imgs["external"]],
                     device=device,
@@ -302,8 +316,9 @@ def main(cfg):
     log(f"Processing data from {data_dir}", "yellow")
     preprocess_robot_data(cfg, data_dir)
 
-    processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
-    raw_data_to_tfds(processed_traj_dirs, cfg.embedding_model, save_file)
+    if cfg.save_dataset:
+        processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
+        raw_data_to_tfds(processed_traj_dirs, cfg.embedding_model, save_file)
 
 
 if __name__ == "__main__":
