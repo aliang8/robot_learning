@@ -77,41 +77,43 @@ def _apply_image_augmentation(
     if channel_first:
         images = tf.transpose(images, perm=[0, 2, 3, 1])
 
-    def _random_crop(img):
-        # Random crop using tf's built-in function
+    # Generate random parameters once for all images
+    if random_crop:
         scale = tf.random.uniform([], min_scale, max_scale)
         scaled_size = tf.cast(orig_size_float * scale, tf.int32)
+
+    if random_flip:
+        should_flip = tf.random.uniform([]) < 0.5
+
+    if color_jitter:
+        brightness = tf.random.uniform([], -brightness_factor, brightness_factor)
+        contrast = tf.random.uniform([], 1 - contrast_factor, 1 + contrast_factor)
+        saturation = tf.random.uniform([], 1 - saturation_factor, 1 + saturation_factor)
+        hue = tf.random.uniform([], -hue_factor, hue_factor)
+        # Generate random order once
+        jitter_order = tf.random.shuffle(tf.range(4))
+
+    def _random_crop(img):
         img = tf.image.resize_with_crop_or_pad(img, scaled_size[0], scaled_size[1])
-        img = tf.image.random_crop(img, [scaled_size[0], scaled_size[1], 3])
         img = tf.image.resize(img, orig_size_int)
         return img
 
     def _random_flip(img):
-        return tf.image.random_flip_left_right(img)
+        return tf.cond(should_flip, lambda: tf.image.flip_left_right(img), lambda: img)
 
     def _color_jitter(img):
-        # Apply color jittering in random order
-        jitter_order = tf.random.shuffle(tf.range(4))
-
         for idx in jitter_order:
             if idx == 0:  # brightness
-                img = tf.image.random_brightness(img, brightness_factor)
+                img = tf.image.adjust_brightness(img, brightness)
             elif idx == 1:  # contrast
-                img = tf.image.random_contrast(
-                    img, 1 - contrast_factor, 1 + contrast_factor
-                )
+                img = tf.image.adjust_contrast(img, contrast)
             elif idx == 2:  # saturation
-                img = tf.image.random_saturation(
-                    img, 1 - saturation_factor, 1 + saturation_factor
-                )
+                img = tf.image.adjust_saturation(img, saturation)
             else:  # hue
-                img = tf.image.random_hue(img, hue_factor)
+                img = tf.image.adjust_hue(img, hue)
+        return tf.clip_by_value(img, 0.0, 1.0)
 
-        # Ensure values are in valid range
-        img = tf.clip_by_value(img, 0.0, 1.0)
-        return img
-
-    # Apply augmentations
+    # Apply augmentations with the same parameters to all images
     if random_crop:
         images = tf.map_fn(_random_crop, images, fn_output_signature=tf.float32)
 
@@ -279,7 +281,6 @@ def process_dataset(
         log("Applying image augmentations", "yellow")
         for k, v in cfg.augmentation_kwargs.items():
             log(f"\t{k}: {v}", "yellow")
-
         for key in cfg.input_modalities:
             if ("img" in key or "image" in key) and "embed" not in key:
                 ds = ds.map(
