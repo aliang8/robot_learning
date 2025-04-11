@@ -252,7 +252,7 @@ def run_eval_rollout(
         for modality in input_modalities:
             input_ = obs[modality_mapping[modality]]
 
-            if "img" in modality and img_embedder is not None:
+            if "image" in modality and img_embedder is not None:
                 input_ = img_embedder(input_)
 
             for _ in range(model_cfg.data.seq_len):
@@ -292,7 +292,7 @@ def run_eval_rollout(
             for modality in input_modalities:
                 input_ = obs[modality_mapping[modality]]
 
-                if "img" in modality and img_embedder is not None:
+                if "image" in modality and img_embedder is not None:
                     input_ = img_embedder(input_)
 
                 input_mode_queues[modality].append(input_)
@@ -322,7 +322,17 @@ def run_eval_rollout(
                     inputs[modality] = torch.stack(
                         list(input_mode_queues[modality]), dim=1
                     ).to(device)
+                elif "image" in modality: # the embedder is in the model
+                    # make it [C, H, W]
+                    inputs[modality] = (
+                        torch.from_numpy(np.stack(list(input_mode_queues[modality]), axis=0))
+                        .float()
+                        .to(device)
+                        .permute(0, 3, 1, 2)
+                        .unsqueeze(0)  # add batch dimension
+                    ) / 255.0
 
+            # import ipdb; ipdb.set_trace()
             # add timesteps to input
             # inputs["timesteps"] = (
             #     torch.arange(model_cfg.data.seq_len).to(device).unsqueeze(0) + timestep
@@ -351,13 +361,13 @@ def run_eval_rollout(
             if model_cfg.data.seq_len > 1:
                 if cfg.use_temporal_ensembling:
                     widowx_client.step_action(action)
-                    time.sleep(sleep_time - inference_time)
+                    time.sleep(max(sleep_time - inference_time, 0))
                 else:
                     # Open loop execution for action chunking
                     for i in range(model_cfg.data.seq_len // 2):
                         action = actions[i]
                         widowx_client.step_action(action)
-                        time.sleep(sleep_time - inference_time)
+                        time.sleep(max(sleep_time - inference_time, 0))
             else:
                 widowx_client.step_action(actions)
 
@@ -417,12 +427,15 @@ def main(cfg: DictConfig) -> None:
         img_embedder = ImageEmbedder(
             model_name=model_cfg.model.embedding_model, device=device
         )
+        img_embedder.eval()
 
     # Map modalities to observation keys
     modality_mapping = {
-        "external_img_embeds": "external_img",
-        "over_shoulder_img_embeds": "over_shoulder_img",
-        "wrist_img_embeds": "wrist_img",
+        "external_images_embeds": "external_img",
+        "external_images": "external_img",
+        "over_shoulder_images_embeds": "over_shoulder_img",
+        "over_shoulder_images": "over_shoulder_img",
+        "wrist_images_embeds": "wrist_img",
         "states": "state",
     }
 
