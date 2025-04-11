@@ -390,17 +390,21 @@ class MultiInputEmbedder(nn.Module):
             self.embedders["states"] = state_embedder
             input_dim += cfg.embedding_dim
 
-        for modality in embed_modalities:
-            # self.embedders[modality] = nn.Sequential(
-            #     nn.Linear(
-            #         EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
-            #     ),
-            #     nn.GELU(),
-            #     nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-            # )
-            self.embedders[modality] = nn.Identity()
-            # input_dim += cfg.embedding_dim
-            input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
+        # if there is just one embed modality, just downproject
+        if len(embed_modalities) == 1:
+            self.embedders[embed_modalities[0]] = nn.Sequential(
+                nn.Linear(
+                    EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
+                ),
+                nn.GELU(),
+                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            )
+            input_dim += cfg.embedding_dim
+        else:
+            for modality in embed_modalities:
+                self.embedders[modality] = nn.Identity()
+                # input_dim += cfg.embedding_dim
+                input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
             if cfg.use_custom_cnn:
