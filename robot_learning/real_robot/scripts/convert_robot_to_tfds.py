@@ -36,8 +36,12 @@ import tensorflow as tf
 import torch
 import tqdm
 from omegaconf import DictConfig
-from PIL import Image
+from PIL import Image, ImageDraw
 
+from robot_learning.data.molmo_utils import (
+    get_center_of_hand,
+    load_molmo_model,
+)
 from robot_learning.data.optical_flow.compute_flow_cotracker_util import (
     load_cotracker,
     load_sam_model,
@@ -50,7 +54,6 @@ from robot_learning.data.utils import (
     create_dataset_name,
     raw_data_to_tfds,
     save_data_compressed,
-    save_dataset,
 )
 from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.logger import log
@@ -172,13 +175,19 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     trajectories = []
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Initialize models
+    # Initialize necessary models!
     if cfg.compute_2d_flow:
         sam, image_predictor = load_sam_model(
             cfg.flow.sam2_checkpoint_file, cfg.flow.model_cfg_file
         )
         cotracker = load_cotracker(cfg.flow.cotracker_ckpt_file)
         cotracker = cotracker.to(device)
+
+        # if we are doing hand tracking, then we load molmo model
+        # to get the center of the hand
+        if "hand" in data_dir.name:
+            log("Loading molmo model for hand tracking", "yellow")
+            processor, molmo = load_molmo_model()
     else:
         image_predictor = None
         cotracker = None
@@ -259,9 +268,15 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             if not img_file.exists():
                 save_data_compressed(img_file, camera_imgs[camera_type])
 
-            img_embed_file = (
-                traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
-            )
+            if "resnet" in cfg.embedding_model:
+                img_embed_file = (
+                    traj_dir
+                    / f"{camera_type}_img_embeds_{cfg.embedding_model}_{cfg.resnet_feature_map_layer}.dat"
+                )
+            else:
+                img_embed_file = (
+                    traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
+                )
             if (
                 not img_embed_file.exists()
                 and camera_type != "depth"
@@ -279,6 +294,25 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
 
             if cfg.flow.queries:
                 queries = np.array(cfg.flow.queries)
+
+                # # Generate additional query points around the original points
+                # expanded_queries = []
+                # for query in queries:
+                #     t, x, y = query
+                #     radius = 10  # pixels
+                #     # Add original point
+                #     expanded_queries.append([t, x, y])
+                #     # Add points in a cross pattern around original point
+                #     expanded_queries.extend(
+                #         [
+                #             [t, x + radius, y],  # right
+                #             [t, x - radius, y],  # left
+                #             [t, x, y + radius],  # down
+                #             [t, x, y - radius],  # up
+                #         ]
+                #     )
+
+                # queries = np.array(expanded_queries)
             else:
                 queries = None
 
@@ -287,37 +321,43 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
 
             video = camera_imgs["external"]
             h, w = video.shape[1], video.shape[2]  # 1080, 1920
+            target_h = int(1920 * (480 / 640))  # = 1440
 
             # Calculate target height for 1920 width to match 480:640 aspect ratio
             # 640/480 = 1920/target_h
-            target_h = int(1920 * (480 / 640))  # = 1440
+            if "hand" in data_dir.name and h != 480:
+                # Calculate padding needed
+                pad_h = target_h - h  # 1440 - 1080 = 360
+                pad_top = pad_h // 2  # 180
+                pad_bottom = pad_h - pad_top  # 180
 
-            # Calculate padding needed
-            pad_h = target_h - h  # 1440 - 1080 = 360
-            pad_top = pad_h // 2  # 180
-            pad_bottom = pad_h - pad_top  # 180
+                # Add padding to top and bottom (black padding)
+                video = np.pad(
+                    video,
+                    (
+                        (0, 0),  # time dimension
+                        (pad_top, pad_bottom),  # height dimension
+                        (0, 0),  # width dimension
+                        (0, 0),
+                    ),  # channels
+                    mode="constant",
+                    constant_values=0,
+                )
 
-            # Add padding to top and bottom (black padding)
-            video = np.pad(
-                video,
-                (
-                    (0, 0),  # time dimension
-                    (pad_top, pad_bottom),  # height dimension
-                    (0, 0),  # width dimension
-                    (0, 0),
-                ),  # channels
-                mode="constant",
-                constant_values=0,
-            )
+                # take a middle frame and get the center of the hand
+                query_frame = video[len(video) // 2]
+                query_frame = Image.fromarray(query_frame)
+                center_of_hand = get_center_of_hand(processor, molmo, query_frame)
 
-            # save image of the first frame
-            first_frame = video[0]
-            first_frame_file = traj_dir / "first_frame.png"
-            Image.fromarray(first_frame).save(first_frame_file)
+                query_frame_file = traj_dir / "query_frame.png"
+                # plot the center of the hand
+                draw = ImageDraw.Draw(query_frame)
+                draw.circle((center_of_hand[0], center_of_hand[1]), 20, fill="red")
+                query_frame.save(query_frame_file)
 
-            import ipdb
-
-            ipdb.set_trace()
+                queries = np.array(
+                    [[len(video) // 2, center_of_hand[0], center_of_hand[1]]]
+                )
 
             flow_traj_data, seg_masks = compute_flow_features(
                 image_predictor=image_predictor,
@@ -325,7 +365,7 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 text=cfg.flow.text_prompt,
                 queries=queries,
                 grounding_model_id=cfg.flow.grounding_model_id,
-                images=[camera_imgs["external"]],
+                images=[video],
                 device=device,
                 visualize_segmentation=cfg.visualize_segmentation,
             )
@@ -354,7 +394,12 @@ def main(cfg):
 
     if cfg.save_dataset:
         processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
-        raw_data_to_tfds(processed_traj_dirs, cfg.embedding_model, save_file)
+        raw_data_to_tfds(
+            processed_traj_dirs,
+            save_file=save_file,
+            embedding_model=cfg.embedding_model,
+            resnet_feature_map_layer=cfg.resnet_feature_map_layer,
+        )
 
 
 if __name__ == "__main__":

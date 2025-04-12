@@ -12,3 +12,4 @@ Grounded-SAM-2/*
 co-tracker/*
 results/*
 outputs/*
+wandb/*

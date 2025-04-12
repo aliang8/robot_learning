@@ -62,7 +62,12 @@ def get_base_trajectory(rew: np.ndarray):
     return trajectory
 
 
-def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str):
+def raw_data_to_tfds(
+    traj_dirs: List[str],
+    save_file: str,
+    embedding_model: str,
+    resnet_feature_map_layer: str = "avgpool",
+):
     num_transitions = 0
 
     # Load trajectories
@@ -88,9 +93,15 @@ def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str)
                 images = load_data_compressed(images_file)
                 traj_data[f"{camera_type}_images"] = images
 
-            img_embeds_file = (
-                traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
-            )
+            if "resnet" in embedding_model:
+                img_embeds_file = (
+                    traj_dir
+                    / f"{camera_type}_img_embeds_{embedding_model}_{resnet_feature_map_layer}.dat"
+                )
+            else:
+                img_embeds_file = (
+                    traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
+                )
             if img_embeds_file.exists():
                 img_embeds = load_data_compressed(img_embeds_file)
                 traj_data[f"{camera_type}_images_embeds"] = img_embeds

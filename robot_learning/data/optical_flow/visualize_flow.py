@@ -40,6 +40,9 @@ def visualize_flow(data_dir: str):
         flow_data = load_data_compressed(flow_file)
         images = load_data_compressed(img_file)
         points = flow_data["points"]
+        normalized_points = flow_data["points_normalized"]
+        log(f"Images shape: {images.shape}")
+        log(f"Points shape: {points.shape}")
 
         # make video of frames and points and flow at each step
         fig, ax = plt.subplots(1, 1, figsize=(8, 8))

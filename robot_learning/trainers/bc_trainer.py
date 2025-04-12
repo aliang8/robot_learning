@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig, OmegaConf
 
-from robot_learning.models.image_embedder import MultiInputEmbedder
+from robot_learning.models.image_embedder import HPTEmbedder, MultiInputEmbedder
 from robot_learning.models.lora import apply_lora
 from robot_learning.models.policy import POLICY_CLS_MAP
 from robot_learning.trainers.offline_trainer import OfflineTrainer
@@ -82,12 +82,15 @@ class BCTrainer(OfflineTrainer):
         if self.cfg.model.use_only_gripper_state:
             state_dim = 4
 
-        embedder = MultiInputEmbedder(
-            cfg=self.cfg.model,
-            input_modalities=self.cfg.model.input_modalities,
+        if self.cfg.model.embedder.name == "hpt":
+            embedder_cls = HPTEmbedder
+        else:
+            embedder_cls = MultiInputEmbedder
+
+        embedder = embedder_cls(
+            cfg=self.cfg.model.embedder,
             state_dim=state_dim,
             seq_len=self.cfg.data.seq_len if self.cfg.model.name == "mlp" else 1,
-            image_shape=(3, *self.cfg.env.image_shape),
         )
 
         if self.cfg.model.name not in POLICY_CLS_MAP:

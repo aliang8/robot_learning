@@ -206,10 +206,14 @@ class ActionChunkingTransformerPolicy(BasePolicy):
             torch.ones(self.cfg.seq_len, self.cfg.seq_len), diagonal=1
         ).to(embeddings.device)
 
+        if embeddings.ndim == 2:
+            # add sequence dimension
+            embeddings = embeddings.unsqueeze(1)
+
         # [B, T, E] -> [B, T, E]
         output = self.transformer_decoder(
             tgt=action_embeddings,
-            memory=embeddings.unsqueeze(1),
+            memory=embeddings,
             # tgt_mask=tgt_mask,
             # tgt_is_causal=True,
         )
