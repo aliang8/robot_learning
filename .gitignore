@@ -9,3 +9,7 @@
 robot_learning/real_robot/outputs/*
 robot_learning/cfg/local/*
 robot_learning/build/*
+Grounded-SAM-2/*
+co-tracker/*
+results/*
+outputs/*

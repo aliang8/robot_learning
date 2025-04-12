@@ -1,6 +1,6 @@
 # @package decoder
 
-name: act_transformer
+name: st_transformer
 n_decoder_layers: 6
 n_layers: 6
 dim_model: 512
@@ -12,3 +12,4 @@ feedforward_activation: gelu
 seq_len: ${data.seq_len}
 
 pos_enc: learned
+num_cond_modalities: 0

@@ -49,8 +49,8 @@ class BaseTrainer:
             sweep = launcher in ["slurm"]
             log(f"launcher: {launcher}, sweep: {sweep}")
 
-        # if we are loading from checkpoint, we don't need to make new dirs
-        if self.cfg.load_from_ckpt:
+        if self.cfg.load_from_ckpt and not self.cfg.finetune:
+            # if we are loading from checkpoint, we don't need to make new dirs
             self.exp_dir = Path(self.cfg.exp_dir)
         else:
             if hydra_cfg and sweep:
@@ -105,7 +105,12 @@ class BaseTrainer:
 
         self.wandb_run = None
         if self.cfg.mode == "train":
-            if not self.cfg.load_from_ckpt or self.cfg.finetuning:
+            if self.cfg.load_from_ckpt or self.cfg.finetuning and not self.cfg.finetune:
+                create_dirs = False
+            else:
+                create_dirs = True
+
+            if create_dirs:
                 self.log_dir = self.exp_dir / "logs"
                 self.ckpt_dir = self.exp_dir / "model_ckpts"
                 self.video_dir = self.exp_dir / "videos"
@@ -115,8 +120,10 @@ class BaseTrainer:
                 self.video_dir.mkdir(parents=True, exist_ok=True)
                 self.log_dir.mkdir(parents=True, exist_ok=True)
 
-                wandb_name = self.cfg.wandb.name
+                # save config to yaml file
+                OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
 
+                wandb_name = self.cfg.wandb.name
                 if self.cfg.use_wandb:
                     self.wandb_run = wandb.init(
                         # set the wandb project where this run will be logged
@@ -129,12 +136,12 @@ class BaseTrainer:
                         config=omegaconf_to_dict(self.cfg),
                         group=self.cfg.group_name,
                     )
-                    wandb_url = self.wandb_run.get_url()
-                    self.cfg.wandb.url = wandb_url  # add wandb url to config
-                    log(f"wandb url: {wandb_url}")
+                else:
+                    self.wandb_run = None
+        else:
+            self.wandb_run = None
 
-            # save config to yaml file
-            OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
+        self.start_update = 0
 
         # create env
         # log(f"creating {self.cfg.env.env_name} environments...")
@@ -347,5 +354,6 @@ class BaseTrainer:
         state_dict = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
+            "scheduler": self.scheduler.state_dict(),
         }
         return state_dict

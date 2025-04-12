@@ -100,11 +100,15 @@ class BCTrainer(OfflineTrainer):
             output_dim=self.cfg.env.action_dim if action_dim is None else action_dim,
         )
 
-        if self.cfg.load_from_ckpt:
-            log("Loaded backbone from checkpoint", "green")
-            cfg, ckpt = model.load_from_ckpt(
-                self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
-            )
+        try:
+            if self.cfg.load_from_ckpt:
+                log("Loaded backbone from checkpoint", "green")
+                cfg, ckpt = model.load_from_ckpt(
+                    self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
+                )
+        except:
+            log("Failed to load backbone from checkpoint here", "red")
+            cfg = None
 
             # Maybe apply lora here
             # TODO: finish this
@@ -137,6 +141,9 @@ class BCTrainer(OfflineTrainer):
                     states = torch.cat([states[:, :, :3], states[:, :, -1:]], dim=-1)
 
         model_inputs = {k: getattr(batch, k) for k in self.cfg.model.input_modalities}
+        model_inputs["states"] = states.float()
+        model_inputs["timesteps"] = batch.timestep
+
         action_preds = self.model(model_inputs)
 
         if self.use_separate_gripper:

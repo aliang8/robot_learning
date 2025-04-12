@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Dict, List
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import tqdm
@@ -15,10 +16,7 @@ from robot_learning.utils.logger import log
 
 
 def compute_image_embeddings(
-    embedding_model: str,
-    images: List[np.ndarray],
-    device: str,
-    resnet_feature_map_layer: str = None,
+    embedder: ImageEmbedder, images: List[np.ndarray]
 ) -> List[np.ndarray]:
     """Compute embeddings for a sequence of images using the specified embedder.
 
@@ -26,12 +24,6 @@ def compute_image_embeddings(
         images: List of images, [T, H, W, C]
         device: Device to run the embeddings on
     """
-    embedder = ImageEmbedder(
-        model_name=embedding_model,
-        device=device,
-        feature_map_layer=resnet_feature_map_layer,
-    )
-
     log(f"Computing image embeddings using {embedder.model_name}")
     embeddings = []
 
@@ -51,36 +43,51 @@ def compute_flow_features(
     grid_size: int = 25,
     max_query_points: int = 100,
     images: List[np.ndarray] = None,
+    queries: np.ndarray = None,
     device: str = "cuda",
+    visualize_segmentation: bool = False,
 ) -> List[Dict[str, np.ndarray]]:
     """Compute optical flow features for a sequence of images."""
     point_tracking_results = []
+    seg_masks = []
 
     for indx, video in enumerate(tqdm.tqdm(images, desc="computing 2d flow")):
-        # Segment out the table
-        table_mask = get_seg_mask(
-            image_predictor,
-            grounding_model_id,
-            text="table.",
-            video=video,
-            device=device,
-        )
+        if queries is None:
+            # Segment out the table
+            table_mask = get_seg_mask(
+                image_predictor,
+                grounding_model_id,
+                text="table.",
+                video=video,
+                device=device,
+            )
 
-        # Get object segmentation mask
-        segm_mask = get_seg_mask(
-            image_predictor, grounding_model_id, text=text, video=video, device=device
-        )
+            # Get object segmentation mask
+            segm_mask = get_seg_mask(
+                image_predictor,
+                grounding_model_id,
+                text=text,
+                video=video,
+                device=device,
+            )
 
-        # Make all positive values 1
-        segm_mask = (segm_mask > 0).astype(np.uint8)
-        table_mask = (table_mask > 0).astype(np.uint8)
+            # Make all positive values 1
+            segm_mask = (segm_mask > 0).astype(np.uint8)
+            table_mask = (table_mask > 0).astype(np.uint8)
 
-        # Zero out table in segm_mask
-        segm_mask = segm_mask * (1 - table_mask)
+            # Zero out table in segm_mask
+            segm_mask = segm_mask * (1 - table_mask)
+        else:
+            segm_mask = None
 
         # Track points across video
         points, visibility = generate_point_tracks(
-            cotracker, video, segm_mask=segm_mask, grid_size=grid_size, device=device
+            cotracker,
+            video,
+            segm_mask=segm_mask,
+            queries=queries,
+            grid_size=grid_size,
+            device=device,
         )
 
         log(f"Points shape: {points.shape}, visibility shape: {visibility.shape}")
@@ -95,6 +102,53 @@ def compute_flow_features(
         viz = tracked_points["visibility"]
         mask = np.ones_like(viz)
 
+        if visualize_segmentation:
+            image = video[0] / 255.0
+
+            if queries is None:
+                # Create figure with 2x2 grid
+                fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+                fig.suptitle("Segmentation Visualization")
+
+                # Original image
+                axes[0, 0].imshow(image)
+                axes[0, 0].set_title("Original Image")
+
+                # Table segmentation mask
+                axes[0, 1].imshow(table_mask, cmap="gray")
+                axes[0, 1].set_title("Table Segmentation")
+
+                # Object segmentation mask
+                axes[1, 0].imshow(segm_mask, cmap="viridis")
+                axes[1, 0].set_title("Object Segmentation")
+
+                # Overlay segmentation on original image
+                overlay = image.copy()
+                # Add colored overlay for table (red) and object (blue)
+                overlay[table_mask > 0.5] = [1.0, 0.0, 0.0]  # Red for table
+                overlay[segm_mask > 0.5] = [0.0, 0.0, 1.0]  # Blue for object
+                # Blend with original image
+                overlay = 0.7 * image + 0.3 * overlay
+
+                axes[1, 1].imshow(overlay)
+                axes[1, 1].set_title("Overlay")
+
+                for ax in axes.flatten():
+                    ax.axis("off")
+
+                plt.tight_layout()
+                plt.savefig(f"debug_flow_{indx}.png")
+                plt.close()
+            else:
+                fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+                ax.imshow(video[0])
+
+                for query in queries:
+                    ax.scatter(query[1], query[2], color="red", marker="x", s=100)
+
+                plt.savefig(f"debug_flow_{indx}.png")
+                plt.close()
+
         # Pad or truncate to max_query_points
         num_points = points.shape[1]
         if num_points < max_query_points:
@@ -107,15 +161,21 @@ def compute_flow_features(
             viz = viz[:, :max_query_points]
             mask = mask[:, :max_query_points]
 
+        W, H = video.shape[2], video.shape[1]
+        points_normalized = points / np.array([W, H])
+
         point_tracking_results.append(
             {
                 "points": points,
                 "points_visibility": viz,
                 "points_mask": mask,
+                "points_normalized": points_normalized,
             }
         )
 
-    return point_tracking_results
+        seg_masks.append(segm_mask)
+
+    return point_tracking_results, seg_masks
 
 
 def process_framestack(cfg, images: List[np.ndarray]) -> List[np.ndarray]:

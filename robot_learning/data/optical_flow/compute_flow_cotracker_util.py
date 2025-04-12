@@ -57,10 +57,16 @@ def get_seg_mask(
     image_predictor: SAM2ImagePredictor,
     grounding_model_id: str,
     text: str,
-    video=None,
-    image=None,
+    video: np.ndarray = None,
+    image: np.ndarray = None,
     device: str = "cuda",
 ):
+    """
+    Args:
+        image: (H, W, 3) numpy array
+        video: (T, H, W, 3) numpy array
+    """
+
     """
     Step 1: Environment settings and model initialization
     """
@@ -72,9 +78,9 @@ def get_seg_mask(
 
     if video is not None:
         # image is first frame of the video
-        image = Image.fromarray(video[0])
+        image = Image.fromarray(video[0].astype(np.uint8))
     else:
-        image = Image.fromarray(image)
+        image = Image.fromarray(image.astype(np.uint8))
 
     """
     Step 2: Prompt Grounding DINO and SAM image predictor to get the box and mask for specific frame
@@ -141,6 +147,18 @@ def generate_point_tracks(
     grid_size: int = 25,
     device: str = "cuda",
 ):
+    """
+    Args:
+        video: (T, H, W, 3) numpy array
+        queries: (N, 3) numpy array
+
+        queries = torch.tensor([
+            [0., 400., 350.],  # point tracked from the first frame
+            [10., 600., 500.], # frame number 10
+            [20., 750., 600.], # ...
+            [30., 900., 200.]
+        ])
+    """
     video = torch.from_numpy(video).permute(0, 3, 1, 2)[None].float()
     video = video.to(device)
 
@@ -151,11 +169,9 @@ def generate_point_tracks(
         log(f"Using provided queries: {queries}")
         queries = torch.from_numpy(queries).float().to(device)
 
-    if segm_mask is None:
+    if queries is not None:
         pred_tracks, pred_visibility = cotracker(
-            video,
-            segm_mask=torch.from_numpy(segm_mask)[None, None],
-            queries=queries[None],
+            video, queries=queries[None], backward_tracking=True
         )
     else:
         pred_tracks, pred_visibility = cotracker(
