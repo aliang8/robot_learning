@@ -34,6 +34,14 @@ from robot_learning.models.policy.action_chunking_transformer_decoder import (
     ACTTemporalEnsembler,
 )
 from robot_learning.trainers import trainer_to_cls
+
+# HACK
+try:
+    from clam.trainers import trainer_to_cls as clam_trainer_to_cls
+    from clam.resolvers import *
+except:
+    clam_trainer_to_cls = {}
+
 from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
 
@@ -397,6 +405,7 @@ def main(cfg: DictConfig) -> None:
     model_cfg.ckpt_file = cfg.ckpt_file
 
     # Load model from checkpoint
+    trainer_to_cls.update(clam_trainer_to_cls)
     trainer = trainer_to_cls[model_cfg.name](model_cfg)
     trainer.model.eval()
 
