@@ -521,8 +521,9 @@ class HPTEmbedder(nn.Module):
         self.cfg = cfg
 
         self.projection = {}
-        self.embedders = {}
-        self.pos_enc = {}
+        self.attention = {}
+        self.query_pos_enc = {}
+        self.key_pos_enc = {}
 
         self.embed_modalities, self.image_modalities, self.state_modalities = (
             separate_modalities(cfg.input_modalities)
@@ -535,43 +536,47 @@ class HPTEmbedder(nn.Module):
         for modality in self.state_modalities:
             # MLP to project states to embedding dim, this will be the key and values
             if modality == "states":
-                self.projection[modality] = nn.Sequential(
-                    nn.Linear(cfg.state_dim, cfg.embedding_dim),
-                    nn.GELU(),
-                    nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+                self.projection[modality] = nn.Linear(cfg.state_dim, cfg.embedding_dim)
+                self.query_pos_enc[modality] = self.register_parameter(
+                    f"query_pos_enc_{modality}",
+                    nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
                 )
-                self.pos_enc[modality] = get_pos_encoding(
-                    "learned", cfg.embedding_dim, 500
+                self.key_pos_enc[modality] = self.register_parameter(
+                    f"key_pos_enc_{modality}",
+                    nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
                 )
 
                 # Cross-attention to generate state-embedding tokens
-                self.embedders[modality] = nn.MultiheadAttention(
+                self.attention[modality] = nn.MultiheadAttention(
                     embed_dim=cfg.embedding_dim,
-                    num_heads=4,
+                    num_heads=cfg.num_heads,
                     dropout=0.1,
                     batch_first=True,
                 )
 
         for modality in self.embed_modalities:
             # these should be feature maps from CNNs, these are the key and values
-            self.projection[modality] = nn.Sequential(
-                nn.Linear(EMBEDDING_DIMS[self.cfg.embedding_model], cfg.embedding_dim),
-                nn.GELU(),
-                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            self.projection[modality] = nn.Linear(
+                EMBEDDING_DIMS[self.cfg.embedding_model], cfg.embedding_dim
             )
-            self.embedders[modality] = nn.MultiheadAttention(
+            self.attention[modality] = nn.MultiheadAttention(
                 embed_dim=cfg.embedding_dim,
-                num_heads=4,
+                num_heads=cfg.num_heads,
                 dropout=0.1,
                 batch_first=True,
             )
             # self.pos_enc[modality] = get_pos_encoding("learned", cfg.embedding_dim, 500)
-            self.pos_enc[modality] = ACTSinusoidalPositionEmbedding2d(
+            self.key_pos_enc[modality] = ACTSinusoidalPositionEmbedding2d(
                 cfg.embedding_dim // 2
             )
+            self.query_pos_enc[modality] = self.register_parameter(
+                f"query_pos_enc_{modality}",
+                nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
+            )
 
-        self.embedders = nn.ModuleDict(self.embedders)
-        self.pos_enc = nn.ModuleDict(self.pos_enc)
+        self.attention = nn.ModuleDict(self.attention)
+        self.query_pos_enc = nn.ModuleDict(self.query_pos_enc)
+        self.key_pos_enc = nn.ModuleDict(self.key_pos_enc)
         self.projection = nn.ModuleDict(self.projection)
 
     def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -585,12 +590,23 @@ class HPTEmbedder(nn.Module):
 
         for modality in self.state_modalities:
             if modality in inputs:
-                state_embedding = self.embedders[modality](inputs[modality])
-                q = torch.zeros_like(state_embedding)
-                k = state_embedding
-                v = state_embedding
+                # [B, D]
+                state_embedding = self.projection[modality](inputs[modality])
+
+                k = state_embedding.unsqueeze(1)
+                v = state_embedding.unsqueeze(1)
+                key_pos_enc = getattr(self, f"key_pos_enc_{modality}")
+                k = k + key_pos_enc[0:1].unsqueeze(0)
+                v = v + key_pos_enc[0:1].unsqueeze(0)
+
                 # add positional encoding to q
-                state_embedding = self.state_cross_attn(q, k, v)
+                query_pos_enc = getattr(self, f"query_pos_enc_{modality}")
+                B, D = state_embedding.shape
+                q = torch.zeros(B, self.cfg.num_learnable_tokens, D).to(
+                    state_embedding.device
+                )
+                q = q + query_pos_enc[0 : self.cfg.num_learnable_tokens].unsqueeze(0)
+                state_embedding, _ = self.attention[modality](q, k, v)
                 embeds.append(state_embedding)
 
         for modality in self.embed_modalities:
@@ -598,7 +614,8 @@ class HPTEmbedder(nn.Module):
                 # [B, C, H, W]
                 image_feature_map = inputs[modality]
                 # TODO: not sure about the pos enc here
-                pos_enc = self.pos_enc[modality](image_feature_map)
+                # this applies the 2D sin pos encoding to the feature map
+                pos_enc = self.key_pos_enc[modality](image_feature_map)
                 # [B, C, H, W] -> [B, H*W, C]
                 image_feature_map = rearrange(image_feature_map, "B C H W -> B (H W) C")
                 pos_enc = rearrange(pos_enc, "B C H W -> B (H W) C")
@@ -609,10 +626,18 @@ class HPTEmbedder(nn.Module):
                 image_feature_map = image_feature_map + pos_enc
 
                 B, _, D = image_feature_map.shape
-                q = torch.zeros(B, 16, D).to(image_feature_map.device)
+                q = torch.zeros(B, self.cfg.num_learnable_tokens, D).to(
+                    image_feature_map.device
+                )
+                query_pos_enc = getattr(self, f"query_pos_enc_{modality}")[
+                    0 : self.cfg.num_learnable_tokens
+                ]
+                query_pos_enc = query_pos_enc.unsqueeze(0)
+                q = q + query_pos_enc
+
                 k = image_feature_map
                 v = image_feature_map
-                image_embedding, _ = self.embedders[modality](q, k, v)
+                image_embedding, _ = self.attention[modality](q, k, v)
                 embeds.append(image_embedding)
 
         # concatenate along the sequence dimension
