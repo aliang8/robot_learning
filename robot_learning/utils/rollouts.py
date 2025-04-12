@@ -204,7 +204,7 @@ def run_eval_rollouts(cfg: DictConfig, model: nn.Module, wandb_run=None):
         if wandb_run is not None:
             rollout_videos = einops.rearrange(rollout_videos, "n t h w c -> n t c h w")
             wandb_run.log(
-                {"rollout_videos/": wandb.Video(rollout_videos, fps=cfg.video_fps)}
+                {"rollout_videos/": wandb.Video(rollout_videos, fps=cfg.video_fps, format="mp4")}
             )
 
         video_env.viewer = None

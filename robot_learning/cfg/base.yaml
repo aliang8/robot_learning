@@ -58,6 +58,10 @@ accelerate:
 
 debug: False
 
+# TODO: retrieval data configs
+retrieval: False
+expert: False
+
 defaults:
   - env: calvin
   - data: base

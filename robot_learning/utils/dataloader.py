@@ -32,12 +32,12 @@ def add_new_fields(x, cfg):
         # TODO: do i need to account for the padding here?
         x["points"] = x["points"] / 84
 
-    x = del_keys(x)
+    x = del_keys(x, cfg)
 
     return x
 
 
-def del_keys(x):
+def del_keys(x, cfg):
     # TODO: for now just get rid of unused keys, taking a lot of time when moving device
     del x["is_terminal"]
     del x["is_last"]
@@ -57,8 +57,12 @@ def del_keys(x):
         del x["flow"]
     if "wrist_images" in x:
         del x["wrist_images"]
-    if "gmflow" in x:
+
+    if "vae" not in cfg.name and "gmflow" in x:
         del x["gmflow"]
+    elif "gmflow" in x:
+        # channel first
+        x["gmflow"] = tf.transpose(x["gmflow"], perm=[0, 3, 1, 2])
 
     return x
 
@@ -230,6 +234,11 @@ def get_dataloader(
 
         data_dir = data_dir / parent_dir
 
+    elif cfg.expert:
+        parent_dir = "expert"
+
+        data_dir = data_dir / parent_dir
+
     log(f"Loading tfds dataset from: {data_dir}, env id: {env_id}")
     log(f"Dataset names: {dataset_names}")
     log(f"Dataset split: {dataset_split}")
@@ -243,6 +252,7 @@ def get_dataloader(
     total_trajs = 0
     ds_to_len = {}
     for i, ds_name in enumerate(dataset_names):
+
         if cfg.retrieval:
             ds_name = f"{cfg.method}/{ds_name}_N-{cfg.N}_K-{cfg.K}"
             dataset_names[i] = ds_name

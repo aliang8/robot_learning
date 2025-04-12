@@ -147,30 +147,17 @@ class BaseTrainer:
             self.best_metric = float("inf")
 
         log("loading train and eval datasets", "blue")
-        # Pass distributed parameters to get_dataloader
-        if cfg.retrieval:
-            # Use K retrieved trajectories for training
-            cfg.data.train_frac = 1.0
-            self.train_ds, self.eval_ds = get_dataloader(
-                cfg,
-                dataset_names=cfg.data.datasets,
-                dataset_split=cfg.data.dataset_split,
-                shuffle=cfg.data.shuffle,
-                distributed=self.distributed,
-                world_size=self.world_size,
-                local_rank=self.local_rank,
-            )
 
-        else:
-            self.train_ds, self.eval_ds = get_dataloader(
-                cfg,
-                dataset_names=cfg.data.datasets,
-                dataset_split=cfg.data.dataset_split,
-                shuffle=cfg.data.shuffle,
-                distributed=self.distributed,
-                world_size=self.world_size,
-                local_rank=self.local_rank,
-            )
+        # Pass distributed parameters to get_dataloader
+        self.train_ds, self.eval_ds = get_dataloader(
+            cfg,
+            dataset_names=cfg.data.datasets,
+            dataset_split=cfg.data.dataset_split,
+            shuffle=cfg.data.shuffle,
+            distributed=self.distributed,
+            world_size=self.world_size,
+            local_rank=self.local_rank,
+        )   
 
         # combine them and uniformly sample from them
         self.train_dataloader = tf.data.Dataset.sample_from_datasets(
