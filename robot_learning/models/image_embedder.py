@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torchvision.transforms as T
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
-from torchvision.models import ResNet18_Weights, ResNet50_Weights, resnet18, resnet50
+from torchvision.models import ResNet50_Weights, resnet50
 from torchvision.models._utils import IntermediateLayerGetter
 
 from robot_learning.models.utils.utils import make_conv_net
@@ -23,7 +23,6 @@ except ImportError:
 
 
 EMBEDDING_DIMS = {
-    "resnet18": 512,
     "resnet50": 2048,
     "r3m": 2048,
     "radio-g": 1536,
@@ -42,7 +41,6 @@ class ImageEmbedder(nn.Module):
     """Wrapper for pretrained image embedding models."""
 
     SUPPORTED_MODELS = [
-        "resnet18",
         "resnet50",
         "r3m",
         "radio-g",
@@ -61,11 +59,6 @@ class ImageEmbedder(nn.Module):
         "radio-l": "radio_v2.5-l",
         "radio-b": "radio_v2.5-b",
         "e-radio": "e-radio_v2",
-    }
-
-    RESNET_CONFIGS = {
-        "resnet18": (resnet18, ResNet18_Weights.IMAGENET1K_V1),
-        "resnet50": (resnet50, ResNet50_Weights.IMAGENET1K_V2),
     }
 
     def __init__(
@@ -126,25 +119,26 @@ class ImageEmbedder(nn.Module):
             )
 
         # Initialize model
-        if model_name in self.RESNET_CONFIGS:
-            model_fn, weights = self.RESNET_CONFIGS[model_name]
-            self.model = model_fn(weights=weights)
-            self.transforms = weights.transforms()
+        if model_name == "resnet50":
+            weights = ResNet50_Weights.IMAGENET1K_V2
+            self.model = resnet50(weights=weights)
+            # self.model = nn.Sequential(
+            #     *list(self.model.children())[:-1]
+            # )  # Remove final FC layer
+            # self.output_dim = 2048
+            self.transforms = ResNet50_Weights.IMAGENET1K_V2.transforms()
 
             # get the feature map
             self.model = IntermediateLayerGetter(
                 self.model, return_layers={feature_map_layer: "feature_map"}
             )
             log(f"Using feature map layer {feature_map_layer}")
-
             if feature_map_layer == "avgpool":
-                self.output_dim = EMBEDDING_DIMS[model_name]
+                self.output_dim = 2048
             elif feature_map_layer == "layer4":
-                final_channels = EMBEDDING_DIMS[model_name]
-                self.output_dim = [final_channels, 7, 7]
+                self.output_dim = [2048, 7, 7]
             else:
                 raise ValueError(f"Feature map layer {feature_map_layer} not supported")
-
             log(f"Output dimension: {self.output_dim}")
             self.feature_map_layer = feature_map_layer
 
@@ -336,7 +330,7 @@ class ImageEmbedder(nn.Module):
                         )
 
                 embeddings = spatial_features if self.use_spatial_features else summary
-        elif self.model_name in self.RESNET_CONFIGS:
+        elif self.model_name == "resnet50":
             embeddings = self.model(processed)["feature_map"]
             if self.feature_map_layer == "avgpool":
                 embeddings = embeddings.flatten(1)
@@ -395,66 +389,51 @@ class MultiInputEmbedder(nn.Module):
             self.embedders["states"] = state_embedder
             input_dim += cfg.embedding_dim
 
-        # if there is just one embed modality, just downproject
-        if len(embed_modalities) == 1:
-            self.embedders[embed_modalities[0]] = nn.Sequential(
-                nn.Linear(
-                    EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
-                ),
-                nn.GELU(),
-                nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
-            )
-            input_dim += cfg.embedding_dim
-        else:
-            for modality in embed_modalities:
-                self.embedders[modality] = nn.Identity()
-                # input_dim += cfg.embedding_dim
-                input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
+        for modality in embed_modalities:
+            # self.embedders[modality] = nn.Sequential(
+            #     nn.Linear(
+            #         EMBEDDING_DIMS[cfg.embedding_model] * seq_len, cfg.embedding_dim
+            #     ),
+            #     nn.GELU(),
+            #     nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
+            # )
+            self.embedders[modality] = nn.Identity()
+            # input_dim += cfg.embedding_dim
+            input_dim += EMBEDDING_DIMS[cfg.embedding_model] * seq_len
 
         for modality in image_modalities:
-            if cfg.use_custom_cnn:
-                # Create custom conv network to embed the images
-                encoder_kwargs = None
-                if "encoder" not in cfg:
-                    # TODO: check this
-                    encoder_kwargs = {
-                        "out_channels": [64, 128, 128, 256, 256, cfg.input_embed_dim],
-                        "kernel_size": [3] * 6,  # 3x3 kernel for all layers
-                        "stride": [1] * 6,  # stride of 1 for all layers
-                        "padding": [1] * 6,  # padding of 1 for all layers
-                        "batch_norm": True,
-                        "residual_layer": False,
-                        "dropout": 0.1,
-                    }
-                    encoder_kwargs = OmegaConf.create(encoder_kwargs)
-                else:
-                    encoder_kwargs = cfg.encoder
-
-                # TODO: add impala cnn back
-                image_embedder, image_embedding_dim = make_conv_net(
-                    image_shape,
-                    output_embedding_dim=cfg.embedding_dim,
-                    net_kwargs=encoder_kwargs,
-                    apply_output_head=True,
-                )
-                input_dim += cfg.embedding_dim
+            # Create custom conv network to embed the images
+            encoder_kwargs = None
+            if "encoder" not in cfg:
+                # TODO: check this
+                encoder_kwargs = {
+                    "out_channels": [64, 128, 128, 256, 256, cfg.input_embed_dim],
+                    "kernel_size": [3] * 6,  # 3x3 kernel for all layers
+                    "stride": [1] * 6,  # stride of 1 for all layers
+                    "padding": [1] * 6,  # padding of 1 for all layers
+                    "batch_norm": True,
+                    "residual_layer": False,
+                    "dropout": 0.1,
+                }
+                encoder_kwargs = OmegaConf.create(encoder_kwargs)
             else:
-                image_embedder = ImageEmbedder(
-                    model_name=cfg.embedding_model,
-                    device="cuda" if torch.cuda.is_available() else "cpu",
-                )
-                for param in image_embedder.parameters():
-                    param.requires_grad = False
-                image_embedder.eval()
-                input_dim += image_embedder.output_dim
+                encoder_kwargs = cfg.encoder
+
+            # TODO: add impala cnn back
+            image_embedder, image_embedding_dim = make_conv_net(
+                image_shape,
+                output_embedding_dim=cfg.embedding_dim,
+                net_kwargs=encoder_kwargs,
+                apply_output_head=True,
+            )
             self.embedders[modality] = image_embedder
+            input_dim += cfg.embedding_dim
 
         self.embedders = nn.ModuleDict(self.embedders)
 
         # if only one modality, no need for fusion
         if len(self.input_modalities) == 1:
             self.fusion_network = nn.Identity()
-            self.output_dim = input_dim
         else:
             self.fusion_network = nn.Sequential(
                 nn.Linear(input_dim, cfg.embedding_dim),
@@ -462,7 +441,7 @@ class MultiInputEmbedder(nn.Module):
                 nn.Linear(cfg.embedding_dim, cfg.embedding_dim),
             )
 
-            self.output_dim = cfg.embedding_dim
+        self.output_dim = cfg.embedding_dim
 
     def forward(
         self,

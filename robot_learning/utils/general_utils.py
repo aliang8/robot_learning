@@ -72,6 +72,14 @@ def to_numpy(x):
     else:
         return x
 
+def to_tensor(x):
+    if isinstance(x, np.ndarray):
+        return torch.tensor(x, dtype=torch.float32, device=DEFAULT_DEVICE)
+    elif isinstance(x, dict):
+        return {k: torch.tensor(v, dtype=torch.float32, device=DEFAULT_DEVICE) for k, v in x.items()}
+    else:
+        return x
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
