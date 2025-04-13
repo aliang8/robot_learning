@@ -61,6 +61,13 @@ class BaseTrainer:
                 else:
                     self.exp_dir = Path(self.cfg.exp_dir) / self.cfg.hp_name
 
+        if self.cfg.load_from_ckpt and self.cfg.finetune:
+            # load the config frm ckpt
+            ckpt_file = Path(self.cfg.ckpt_file) / "config.yaml"
+            model_cfg = OmegaConf.load(ckpt_file)
+            # copy over the model config
+            self.cfg.model = model_cfg.model
+
         log(f"experiment dir: {self.exp_dir}")
 
         # add exp_dir to config

@@ -112,6 +112,7 @@ def raw_data_to_tfds(
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
 
+        log("=" * 100)
         for k, v in traj_data.items():
             if isinstance(v, np.ndarray):
                 log(f"{k}: {v.shape}")
