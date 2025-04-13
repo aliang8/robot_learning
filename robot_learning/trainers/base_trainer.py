@@ -110,11 +110,11 @@ class BaseTrainer:
             else:
                 create_dirs = True
 
-            if create_dirs:
-                self.log_dir = self.exp_dir / "logs"
-                self.ckpt_dir = self.exp_dir / "model_ckpts"
-                self.video_dir = self.exp_dir / "videos"
+            self.log_dir = self.exp_dir / "logs"
+            self.ckpt_dir = self.exp_dir / "model_ckpts"
+            self.video_dir = self.exp_dir / "videos"
 
+            if create_dirs:
                 # create directories
                 self.ckpt_dir.mkdir(parents=True, exist_ok=True)
                 self.video_dir.mkdir(parents=True, exist_ok=True)
@@ -122,22 +122,23 @@ class BaseTrainer:
 
                 # save config to yaml file
                 OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
-
-                wandb_name = self.cfg.wandb.name
-                if self.cfg.use_wandb:
-                    self.wandb_run = wandb.init(
-                        # set the wandb project where this run will be logged
-                        entity=self.cfg.wandb.entity,
-                        project=self.cfg.wandb.project,
-                        name=wandb_name,
-                        notes=self.cfg.wandb.notes,
-                        tags=[str(tag) for tag in self.cfg.wandb.tags],
-                        # track hyperparameters and run metadata
-                        config=omegaconf_to_dict(self.cfg),
-                        group=self.cfg.group_name,
-                    )
-                else:
-                    self.wandb_run = None
+            
+            # setup wandb
+            wandb_name = self.cfg.wandb.name
+            if self.cfg.use_wandb:
+                self.wandb_run = wandb.init(
+                    # set the wandb project where this run will be logged
+                    entity=self.cfg.wandb.entity,
+                    project=self.cfg.wandb.project,
+                    name=wandb_name,
+                    notes=self.cfg.wandb.notes,
+                    tags=[str(tag) for tag in self.cfg.wandb.tags],
+                    # track hyperparameters and run metadata
+                    config=omegaconf_to_dict(self.cfg),
+                    group=self.cfg.group_name,
+                )
+            else:
+                self.wandb_run = None
         else:
             self.wandb_run = None
 

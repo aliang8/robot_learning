@@ -149,15 +149,15 @@ def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
     tf.data.Dataset.save(trajectory_tfds, str(save_file))
 
 
-def save_data_compressed(path, data):
-    log(f"Saving to {path}", "yellow")
+def save_data_compressed(path, data, log=False):
+    log(f"Saving to {path}", "yellow") if log else None
     with open(path, "wb") as f:
         compressed_data = blosc.compress(pkl.dumps(data))
         f.write(compressed_data)
 
 
-def load_data_compressed(path):
-    log(f"Loading from {path}", "yellow")
+def load_data_compressed(path, log=False):
+    log(f"Loading from {path}", "yellow") if log else None
     with open(path, "rb") as f:
         compressed_data = f.read()
         data = pkl.loads(blosc.decompress(compressed_data))
