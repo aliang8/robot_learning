@@ -19,7 +19,6 @@ embedding_model: 'r3m'  # Options: 'r3m', 'resnet50', 'radio-h', etc.
 resnet_feature_map_layer: 'avgpool' # 'layer4'
 
 compute_2d_flow: False
-visualize_segmentation: False
 save_dataset: False
 flow:
   sam2_checkpoint_file: ${paths.root_dir}/Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt
