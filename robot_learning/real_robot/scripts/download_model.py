@@ -1,8 +1,9 @@
 """
 python3 -m robot_learning.real_robot.scripts.download_model \
-    --server aliang80@snoopy.usc.edu \
-    --source-root /scr/aliang80/p-llm-hf/hand_demos/results \
-    --target-root /home/liralab-widowx/p-llm-hf/hand_demos/results \
+    --server aliang80@snoopy1.usc.edu \
+    --source_root=/scr/aliang80/p-llm-hf/hand_demos/results \
+    --target_root=/home/liralab-widowx/p-llm-hf/hand_demos/results \
+    --run_ids=reach_block_hpt_no_state
 
 Ckpt structure:
     root/
@@ -18,7 +19,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from robot_learning.utils.logging import log
+from robot_learning.utils.logger import log
 
 
 def get_model_paths(server_name, source_root, run_id, ckpt_steps=None):
@@ -32,23 +33,19 @@ def get_model_paths(server_name, source_root, run_id, ckpt_steps=None):
     """
     # List contents of run directory to get model paths
     run_path = Path(source_root) / run_id
-    cmd = ["ssh", server_name, f"ls {run_path}/*/*/model_ckpts/"]
+    cmd = ["ssh", "-i", "~/.ssh/id_rsa", server_name, f"ls {run_path}/*"]
 
     log(f"Getting model paths for run_id: {run_id}")
     log(f"Command: {' '.join(cmd)}")
 
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        ckpt_paths = result.stdout.strip().split("\n")
+        exp_dirs = result.stdout.strip().split("\n")
+        # filter log.txt and multirun.yaml
+        exp_dirs = [d for d in exp_dirs if "log.txt" not in d and "multirun.yaml" not in d]
 
-        # Filter checkpoints if specific steps requested
-        if ckpt_steps:
-            filtered_paths = []
-            for path in ckpt_paths:
-                for step in ckpt_steps:
-                    if f"step_{step}" in path:
-                        filtered_paths.append(path)
-            return filtered_paths
+        ckpt_paths = [run_path / d / "model_ckpts" / f"ckpt_{}" for d in exp_dirs]
+        # also need the config path
         return ckpt_paths
 
     except subprocess.CalledProcessError as e:
@@ -104,7 +101,7 @@ def setup_rsync(source_root, target_root, source_path, server_name):
         log(f"Error during sync: {e}")
 
 
-def download_models(server_name, source_root, target_root, run_id, ckpt_steps=None):
+def download_models(server_name, source_root, target_root, run_ids, ckpt_steps=None):
     """Download specific model checkpoints for a run.
 
     Args:
@@ -115,7 +112,8 @@ def download_models(server_name, source_root, target_root, run_id, ckpt_steps=No
         ckpt_steps: List of specific checkpoint steps to download, or None for all
     """
     # Get paths to all relevant checkpoints
-    ckpt_paths = get_model_paths(server_name, source_root, run_id, ckpt_steps)
+    for run_id in run_ids:
+        ckpt_paths = get_model_paths(server_name, source_root, run_id, ckpt_steps)
 
     if not ckpt_paths:
         log(f"No checkpoints found for run_id: {run_id}")
@@ -143,16 +141,16 @@ if __name__ == "__main__":
         help="Server name (e.g., username@server.com)",
     )
     parser.add_argument(
-        "--source-root", type=str, required=True, help="Root directory on server"
+        "--source_root", type=str, required=True, help="Root directory on server"
     )
     parser.add_argument(
-        "--target-root", type=str, required=True, help="Root directory on local machine"
+        "--target_root", type=str, required=True, help="Root directory on local machine"
     )
     parser.add_argument(
-        "--run-id", type=str, required=True, help="Specific run ID to download from"
+        "--run_ids", type=str, required=True, nargs="+", help="Specific run ID to download from"
     )
     parser.add_argument(
-        "--ckpt-steps",
+        "--ckpt_steps",
         type=int,
         nargs="+",
         help="Specific checkpoint steps to download (e.g., 1000 2000 3000)",
@@ -164,6 +162,6 @@ if __name__ == "__main__":
         server_name=args.server,
         source_root=args.source_root,
         target_root=args.target_root,
-        run_id=args.run_id,
+        run_ids=args.run_ids,
         ckpt_steps=args.ckpt_steps,
     )
