@@ -74,7 +74,7 @@ def setup_rsync(source_root, target_root, source_path, server_name):
     Args:
         source_root: Root directory on server (e.g., '/scr/my_project/')
         target_root: Root directory on local machine (e.g., '/Users/me/projects/')
-        source_path: Path to sync (e.g., '/scr/my_project/data/images/')
+        source_path: Path to sync (file or directory)
         server_name: Server to sync from (e.g., 'username@server.com')
     """
     # Convert paths to Path objects
@@ -91,13 +91,18 @@ def setup_rsync(source_root, target_root, source_path, server_name):
 
     # Construct rsync command
     source = f"{server_name}:{source_path}"
-    target = str(target_path)
 
-    # Run rsync with progress flag and archive mode
+    # For files, we want to sync to the parent directory with a trailing slash
+    # For directories, we want to sync to the directory itself
+    if ".pkl" in str(source_path) or ".yaml" in str(source_path):
+        target = str(target_path.parent) + "/"
+    else:
+        target = str(target_path)
+
+    # Build rsync command
     cmd = [
         "rsync",
         "-avP",  # archive mode, verbose, show progress
-        "--relative",  # use relative paths
         "-e",
         "ssh -i ~/.ssh/id_rsa",  # specify ssh key
         source,
