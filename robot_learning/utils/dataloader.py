@@ -21,6 +21,27 @@ def episode_to_step_custom(episode, size, shift):
     )
 
 
+def remove_fields(x, cfg):
+    # delete some fields too to speed up loading
+    # TODO: fix this
+    del x["over_shoulder_images"]
+    del x["points"]
+    del x["points_normalized"]
+    del x["external_images"]
+
+    # also let's cast the embeds to float16, cause reduces memory usage
+    # this halfs the training time i think cause the batch loading is much faster
+    if "over_shoulder_images_embeds" in x:
+        x["over_shoulder_images_embeds"] = tf.cast(
+            x["over_shoulder_images_embeds"], tf.float16
+        )
+
+    if "external_images_embeds" in x:
+        x["external_images_embeds"] = tf.cast(x["external_images_embeds"], tf.float16)
+
+    return x
+
+
 # add additional fields to the dataset
 def add_new_fields(x, cfg):
     x["mask"] = tf.ones(tf.shape(x["actions"])[0])
@@ -32,12 +53,6 @@ def add_new_fields(x, cfg):
         # TODO: do i need to account for the padding here?
         x["points"] = x["points"] / 84
 
-    # delete some fields too to speed up loading
-    # TODO: fix this
-    del x["over_shoulder_images"]
-    del x["points"]
-    del x["points_normalized"]
-    del x["external_images"]
     return x
 
 
@@ -237,6 +252,7 @@ def process_dataset(
     #     log("done with rewards", "yellow")
 
     ds = ds.map(partial(add_new_fields, cfg=cfg), num_parallel_calls=tf.data.AUTOTUNE)
+    ds = ds.map(partial(remove_fields, cfg=cfg), num_parallel_calls=tf.data.AUTOTUNE)
     ds = ds.map(
         partial(process_state, cfg=cfg, env_name=env_name),
         num_parallel_calls=tf.data.AUTOTUNE,

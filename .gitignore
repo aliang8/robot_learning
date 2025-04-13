@@ -13,3 +13,5 @@ co-tracker/*
 results/*
 outputs/*
 wandb/*
+robot_learning/notebooks/*
+notebooks/*

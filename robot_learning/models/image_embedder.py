@@ -612,6 +612,8 @@ class HPTEmbedder(nn.Module):
         for modality in self.embed_modalities:
             if modality in inputs:
                 # [B, C, H, W]
+                # cast back to float32 here for training?
+                # hopefully not problem during inference time
                 image_feature_map = inputs[modality]
                 # TODO: not sure about the pos enc here
                 # this applies the 2D sin pos encoding to the feature map
