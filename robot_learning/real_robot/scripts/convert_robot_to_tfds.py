@@ -390,7 +390,8 @@ def main(cfg):
 
     data_dir = Path(cfg.data_dir)
     log(f"Processing data from {data_dir}", "yellow")
-    preprocess_robot_data(cfg, data_dir)
+    if cfg.preprocess_data:
+        preprocess_robot_data(cfg, data_dir)
 
     if cfg.save_dataset:
         processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
