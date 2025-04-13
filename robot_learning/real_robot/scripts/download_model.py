@@ -22,7 +22,7 @@ from pathlib import Path
 from robot_learning.utils.logger import log
 
 
-def get_model_paths(server_name, source_root, run_id, ckpt_steps=None):
+def get_paths_to_download(server_name, source_root, run_id, ckpt_steps=None):
     """Get paths to model checkpoints for specified run_id.
 
     Args:
@@ -32,8 +32,10 @@ def get_model_paths(server_name, source_root, run_id, ckpt_steps=None):
         ckpt_steps: List of specific checkpoint steps to download, or None for all
     """
     # List contents of run directory to get model paths
-    run_path = Path(source_root) / run_id
-    cmd = ["ssh", "-i", "~/.ssh/id_rsa", server_name, f"ls {run_path}/*"]
+    exp_path = Path(source_root) / run_id
+
+    # Get all the subdirectories for the experiment
+    cmd = ["ssh", "-i", "~/.ssh/id_rsa", server_name, f"ls {exp_path}/*"]
 
     log(f"Getting model paths for run_id: {run_id}")
     log(f"Command: {' '.join(cmd)}")
@@ -41,12 +43,24 @@ def get_model_paths(server_name, source_root, run_id, ckpt_steps=None):
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         exp_dirs = result.stdout.strip().split("\n")
-        # filter log.txt and multirun.yaml
-        exp_dirs = [d for d in exp_dirs if "log.txt" not in d and "multirun.yaml" not in d]
 
-        ckpt_paths = [run_path / d / "model_ckpts" / f"ckpt_{}" for d in exp_dirs]
-        # also need the config path
-        return ckpt_paths
+        # filter log.txt and multirun.yaml
+        exp_dirs = [
+            d for d in exp_dirs if "log.txt" not in d and "multirun.yaml" not in d
+        ]
+
+        if ckpt_steps is None:
+            ckpt_paths = [exp_path / d / "model_ckpts" / "latest.pkl" for d in exp_dirs]
+        else:
+            ckpt_paths = [
+                exp_path / d / "model_ckpts" / f"ckpt_{step:06d}.pkl"
+                for d in exp_dirs
+                for step in ckpt_steps
+            ]
+        # also need the config paths
+        config_paths = [exp_path / d / "config.yaml" for d in exp_dirs]
+        paths = ckpt_paths + config_paths
+        return paths
 
     except subprocess.CalledProcessError as e:
         log(f"Error getting model paths: {e}")
@@ -112,15 +126,13 @@ def download_models(server_name, source_root, target_root, run_ids, ckpt_steps=N
         ckpt_steps: List of specific checkpoint steps to download, or None for all
     """
     # Get paths to all relevant checkpoints
+    paths_to_download = []
     for run_id in run_ids:
-        ckpt_paths = get_model_paths(server_name, source_root, run_id, ckpt_steps)
-
-    if not ckpt_paths:
-        log(f"No checkpoints found for run_id: {run_id}")
-        return
+        paths = get_paths_to_download(server_name, source_root, run_id, ckpt_steps)
+        paths_to_download.extend(paths)
 
     # Download each checkpoint
-    for path in ckpt_paths:
+    for path in paths_to_download:
         log(f"Downloading checkpoint: {path}")
         setup_rsync(
             source_root=source_root,
@@ -147,7 +159,11 @@ if __name__ == "__main__":
         "--target_root", type=str, required=True, help="Root directory on local machine"
     )
     parser.add_argument(
-        "--run_ids", type=str, required=True, nargs="+", help="Specific run ID to download from"
+        "--run_ids",
+        type=str,
+        required=True,
+        nargs="+",
+        help="Specific run ID to download from",
     )
     parser.add_argument(
         "--ckpt_steps",
