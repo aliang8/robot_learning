@@ -15,12 +15,13 @@ tfds_data_dir: ${paths.data_dir}/tensorflow_datasets
 
 # Image embedding options
 precompute_embeddings: False 
-embedding_model: 'r3m'  # Options: 'r3m', 'resnet50', 'radio-h', etc.
-resnet_feature_map_layer: 'avgpool' # 'layer4'
+embedding_model: 'resnet50'  # Options: 'r3m', 'resnet50', 'radio-h', etc.
+resnet_feature_map_layer: 'layer4' # 'layer4'
 
 compute_2d_flow: False
-visualize_segmentation: False
 save_dataset: False
+preprocess_data: True
+
 flow:
   sam2_checkpoint_file: ${paths.root_dir}/Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt
   model_cfg_file: sam2.1_hiera_l.yaml

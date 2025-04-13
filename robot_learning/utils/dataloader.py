@@ -21,6 +21,27 @@ def episode_to_step_custom(episode, size, shift):
     )
 
 
+def remove_fields(x, cfg):
+    # delete some fields too to speed up loading
+    # TODO: fix this
+    del x["over_shoulder_images"]
+    del x["points"]
+    del x["points_normalized"]
+    del x["external_images"]
+
+    # also let's cast the embeds to float16, cause reduces memory usage
+    # this halfs the training time i think cause the batch loading is much faster
+    if "over_shoulder_images_embeds" in x:
+        x["over_shoulder_images_embeds"] = tf.cast(
+            x["over_shoulder_images_embeds"], tf.float16
+        )
+
+    if "external_images_embeds" in x:
+        x["external_images_embeds"] = tf.cast(x["external_images_embeds"], tf.float16)
+
+    return x
+
+
 # add additional fields to the dataset
 def add_new_fields(x, cfg):
     x["mask"] = tf.ones(tf.shape(x["actions"])[0])
@@ -31,6 +52,7 @@ def add_new_fields(x, cfg):
         # normalize by dividing by image size
         # TODO: do i need to account for the padding here?
         x["points"] = x["points"] / 84
+
     return x
 
 
@@ -195,14 +217,12 @@ def process_dataset(
     env_name: str = None,
     drop_remainder: bool = False,
     apply_image_augmentation: bool = False,
+    cache_file: str = None,
 ):
     """
     Applies transformations to base tfds such as batching, shuffling, etc.
     """
     ds = ds.filter(filter_fn)
-
-    # caching the dataset makes it faster in the next iteration
-    # ds = ds.cache()
 
     # the buffer size is important for memory usage and affects speed
     # shuffle here is for trajectories
@@ -232,6 +252,7 @@ def process_dataset(
     #     log("done with rewards", "yellow")
 
     ds = ds.map(partial(add_new_fields, cfg=cfg), num_parallel_calls=tf.data.AUTOTUNE)
+    ds = ds.map(partial(remove_fields, cfg=cfg), num_parallel_calls=tf.data.AUTOTUNE)
     ds = ds.map(
         partial(process_state, cfg=cfg, env_name=env_name),
         num_parallel_calls=tf.data.AUTOTUNE,
@@ -293,6 +314,13 @@ def process_dataset(
                     num_parallel_calls=tf.data.AUTOTUNE,
                 )
 
+    # caching the dataset makes it faster in the next iteration
+    # cache after all the mapping functions, but before the shuffling
+    if cache_file is not None:
+        ds = ds.cache(cache_file)
+    else:
+        ds = ds.cache()
+
     # shuffle the full dataset one more time
     if shuffle:  # shuffle here is for transitions
         log("\tshuffling dataset")
@@ -303,7 +331,7 @@ def process_dataset(
         ds = ds.take(cfg.num_examples)
 
     ds = ds.batch(cfg.batch_size, drop_remainder=drop_remainder)
-    ds = ds.cache()
+    # ds = ds.cache()
     ds = ds.prefetch(tf.data.AUTOTUNE)
     return ds
 
@@ -429,6 +457,7 @@ def get_dataloader(
             env_name=cfg.env.env_name,
             shuffle=shuffle,
             apply_image_augmentation=cfg.data.apply_image_augmentation,
+            # cache_file=f"/scr/aliang80/cache/ds_cache_{ds_name}_train.tfds",
         )
 
     log("Creating eval datasets")
@@ -443,6 +472,7 @@ def get_dataloader(
             env_name=cfg.env.env_name,
             shuffle=False,
             apply_image_augmentation=False,
+            # cache_file=f"/scr/aliang80/cache/ds_cache_{ds_name}_eval.tfds",
         )
 
     return train_ds, eval_ds

@@ -14,6 +14,11 @@ data:
 name: bc_ac
 hp_name: ${name}_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}_ft-${finetune}
 
+wandb:
+  tags:
+    - ${data.num_trajs}
+    - ${run_id}
+
 defaults:
   - base
   - model/policy@model: ac_transformer

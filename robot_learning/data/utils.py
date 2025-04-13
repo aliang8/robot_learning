@@ -76,6 +76,7 @@ def raw_data_to_tfds(
     for dat_file in Path(traj_dir).glob("*.dat"):
         if "images" in dat_file.name and "processed" not in dat_file.name:
             available_cameras.append(dat_file.name.split("_images")[0])
+
     log(f"Available cameras: {available_cameras}", "yellow")
 
     processed_trajs = []
@@ -106,11 +107,12 @@ def raw_data_to_tfds(
                 img_embeds = load_data_compressed(img_embeds_file)
                 traj_data[f"{camera_type}_images_embeds"] = img_embeds
 
-        flow_file = traj_dir / "2d_flow.dat"
+        flow_file = traj_dir / "2d_flow_all.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
 
+        log("=" * 100)
         for k, v in traj_data.items():
             if isinstance(v, np.ndarray):
                 log(f"{k}: {v.shape}")

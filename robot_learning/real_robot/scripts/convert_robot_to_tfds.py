@@ -52,6 +52,7 @@ from robot_learning.data.preprocess import (
 )
 from robot_learning.data.utils import (
     create_dataset_name,
+    load_data_compressed,
     raw_data_to_tfds,
     save_data_compressed,
 )
@@ -125,7 +126,7 @@ def load_metadata(data_file: str) -> Dict:
     return {k: data[k][:-1] for k in data.keys()}  # For observation dict
 
 
-def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
+def get_available_cameras(data_files: List[Path]) -> Dict[str, str]:
     """
     Get mapping of available camera types to their directories.
 
@@ -136,13 +137,13 @@ def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
     """
     camera_mapping = {}
     for file_path in data_files:
-        if "depth_images" in file_path:
+        if "depth_images" in file_path.name:
             camera_mapping["depth"] = file_path
-        elif "external" in file_path:
+        elif "external" in file_path.name:
             camera_mapping["external"] = file_path
-        elif "over_shoulder" in file_path:
+        elif "over_shoulder" in file_path.name:
             camera_mapping["over_shoulder"] = file_path
-        elif "wrist" in file_path:
+        elif "wrist" in file_path.name:
             camera_mapping["wrist"] = file_path
     return camera_mapping
 
@@ -150,21 +151,24 @@ def get_available_cameras(data_files: List[str]) -> Dict[str, str]:
 def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     """
     Assumes robot data is stored in the following format:
-    data_dir/
-        traj0/
-            obs_dict.pkl
-            policy_out.pkl
-            depth_images/
-            external_images/
+
+        data_dir/
+            traj0/
+                obs_dict.pkl
+                policy_out.pkl
+                depth_images/
+                external_images/
+
+    Creates a new directory in data_dir/processed_trajs/ with the following format
+    with .dat files for each type of information:
+
+        data_dir/
+            processed_trajs/
+                traj_000000/
+                    depth_images.dat
+                    external_images.dat
     """
-    # hacky way to just get traj folders that aren't followed by _
-    traj_dirs = sorted(
-        [
-            str(d)
-            for d in Path(data_dir).glob("traj*")
-            if re.match(r"^traj(?!_)", d.name)
-        ]
-    )
+    traj_dirs = sorted(data_dir.glob("traj*"))
     # filter only folders
     traj_dirs = [d for d in traj_dirs if os.path.isdir(d)]
     log(f"Processing {len(traj_dirs)} trajectories", "yellow")
@@ -172,18 +176,18 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     if cfg.debug:
         traj_dirs = traj_dirs[:2]
 
-    trajectories = []
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Initialize necessary models!
     if cfg.compute_2d_flow:
+        # Load SAM 2 and Grounding DINO if we are computing 2d flow
         sam, image_predictor = load_sam_model(
             cfg.flow.sam2_checkpoint_file, cfg.flow.model_cfg_file
         )
         cotracker = load_cotracker(cfg.flow.cotracker_ckpt_file)
         cotracker = cotracker.to(device)
 
-        # if we are doing hand tracking, then we load molmo model
+        # If we are doing hand tracking, then we load molmo model
         # to get the center of the hand
         if "hand" in data_dir.name:
             log("Loading molmo model for hand tracking", "yellow")
@@ -203,9 +207,9 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         img_embedder = None
 
     for traj_idx, traj_dir in enumerate(
-        tqdm.tqdm(traj_dirs, desc="Processing traj groups")
+        tqdm.tqdm(traj_dirs, desc="Processing trajectories")
     ):
-        data_files = sorted(glob(traj_dir + "/*"))
+        data_files = sorted(traj_dir.glob("*"))
 
         # Check for required files
         obs_dict_file = Path(traj_dir) / "obs_dict.pkl"
@@ -215,7 +219,27 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             log(f"Skipping {traj_dir} - missing required files", "red")
             continue
 
-        # Get available cameras
+        # Save to .dat format
+        new_traj_dir = data_dir / "processed_trajs" / f"traj_{traj_idx:06d}"
+        new_traj_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load metadata
+        save_file = new_traj_dir / "traj_data.dat"
+        if not save_file.exists():
+            if obs_dict_file.exists():
+                obs_dict = load_metadata(obs_dict_file)
+                policy_out = load_metadata(policy_out_file)
+
+                # Save metadata for each trajectory
+                traj_data = {
+                    "states": obs_dict["state"],
+                    "actions": policy_out["actions"],
+                    "rewards": np.zeros(len(policy_out["actions"])),
+                    "qvel": obs_dict["qvel"],  # need this for retrieval
+                }
+                save_data_compressed(save_file, traj_data)
+
+        # Get available cameras files
         camera_mapping = get_available_cameras(data_files)
         if not camera_mapping:
             log(f"Skipping {traj_dir} - no camera data found", "red")
@@ -232,50 +256,41 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 continue
 
             is_depth = camera_type == "depth"
-            imgs, processed_imgs = load_images(cfg, camera_dir, is_depth=is_depth)
 
-            if imgs is not None:
-                camera_imgs[f"{camera_type}"] = imgs
-                processed_camera_imgs[f"{camera_type}"] = processed_imgs
+            # Load raw images and also processed images
+            # which center crops to the shortest edge
+            img_file = new_traj_dir / f"{camera_type}_images.dat"
 
-        # Save to .dat format
-        traj_dir = data_dir / "processed_trajs" / f"traj_{traj_idx:06d}"
-        traj_dir.mkdir(parents=True, exist_ok=True)
+            if not img_file.exists():
+                imgs, processed_imgs = load_images(cfg, camera_dir, is_depth=is_depth)
 
-        # Load metadata
-        save_file = traj_dir / "traj_data.dat"
-        if not save_file.exists():
-            if obs_dict_file.exists():
-                obs_dict = load_metadata(obs_dict_file)
-                policy_out = load_metadata(policy_out_file)
-                trajectories.append([obs_dict, policy_out, camera_imgs])
+                if imgs is not None:
+                    camera_imgs[f"{camera_type}"] = imgs
+                    processed_camera_imgs[f"{camera_type}"] = processed_imgs
+            else:
+                camera_imgs[f"{camera_type}"] = load_data_compressed(img_file)
+                processed_camera_imgs[f"{camera_type}"] = load_data_compressed(
+                    new_traj_dir / f"{camera_type}_processed_images.dat"
+                )
 
-                # Save metadata for each trajectory
-                traj_data = {
-                    "states": obs_dict["state"],
-                    "actions": policy_out["actions"],
-                    "rewards": np.zeros(len(policy_out["actions"])),
-                    "qvel": obs_dict["qvel"],
-                }
-                save_data_compressed(save_file, traj_data)
-
+        # Save processed images
         for camera_type, images in camera_imgs.items():
-            img_file = traj_dir / f"{camera_type}_processed_images.dat"
+            img_file = new_traj_dir / f"{camera_type}_processed_images.dat"
             if not img_file.exists():
                 save_data_compressed(img_file, processed_camera_imgs[camera_type])
 
-            img_file = traj_dir / f"{camera_type}_images.dat"
+            img_file = new_traj_dir / f"{camera_type}_images.dat"
             if not img_file.exists():
                 save_data_compressed(img_file, camera_imgs[camera_type])
 
             if "resnet" in cfg.embedding_model:
                 img_embed_file = (
-                    traj_dir
+                    new_traj_dir
                     / f"{camera_type}_img_embeds_{cfg.embedding_model}_{cfg.resnet_feature_map_layer}.dat"
                 )
             else:
                 img_embed_file = (
-                    traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
+                    new_traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
                 )
             if (
                 not img_embed_file.exists()
@@ -289,43 +304,24 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
 
         if cfg.compute_2d_flow:
             suffix = "query" if cfg.flow.queries else "all"
-            flow_file = traj_dir / f"2d_flow_{suffix}.dat"
-            seg_masks_file = traj_dir / "seg_masks.dat"
+            flow_file = new_traj_dir / f"2d_flow_{suffix}.dat"
+
+            if flow_file.exists():
+                continue
 
             if cfg.flow.queries:
                 queries = np.array(cfg.flow.queries)
-
-                # # Generate additional query points around the original points
-                # expanded_queries = []
-                # for query in queries:
-                #     t, x, y = query
-                #     radius = 10  # pixels
-                #     # Add original point
-                #     expanded_queries.append([t, x, y])
-                #     # Add points in a cross pattern around original point
-                #     expanded_queries.extend(
-                #         [
-                #             [t, x + radius, y],  # right
-                #             [t, x - radius, y],  # left
-                #             [t, x, y + radius],  # down
-                #             [t, x, y - radius],  # up
-                #         ]
-                #     )
-
-                # queries = np.array(expanded_queries)
             else:
                 queries = None
 
-            # Run cotracking on the external camera image
-            # if not flow_file.exists():
-
             video = camera_imgs["external"]
             h, w = video.shape[1], video.shape[2]  # 1080, 1920
-            target_h = int(1920 * (480 / 640))  # = 1440
 
             # Calculate target height for 1920 width to match 480:640 aspect ratio
             # 640/480 = 1920/target_h
+            # We need this for processing videos recorded on the iphone
             if "hand" in data_dir.name and h != 480:
+                target_h = int(1920 * (480 / 640))  # = 1440
                 # Calculate padding needed
                 pad_h = target_h - h  # 1440 - 1080 = 360
                 pad_top = pad_h // 2  # 180
@@ -344,12 +340,14 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                     constant_values=0,
                 )
 
-                # take a middle frame and get the center of the hand
+                # take a middle frame
+                # hopefully the hand is visible from this frame
+                # and get the center of the hand using molmo
                 query_frame = video[len(video) // 2]
                 query_frame = Image.fromarray(query_frame)
                 center_of_hand = get_center_of_hand(processor, molmo, query_frame)
 
-                query_frame_file = traj_dir / "query_frame.png"
+                query_frame_file = new_traj_dir / "query_frame.png"
                 # plot the center of the hand
                 draw = ImageDraw.Draw(query_frame)
                 draw.circle((center_of_hand[0], center_of_hand[1]), 20, fill="red")
@@ -359,18 +357,20 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                     [[len(video) // 2, center_of_hand[0], center_of_hand[1]]]
                 )
 
-            flow_traj_data, seg_masks = compute_flow_features(
+            flow_traj_data, renders = compute_flow_features(
                 image_predictor=image_predictor,
                 cotracker=cotracker,
                 text=cfg.flow.text_prompt,
                 queries=queries,
                 grounding_model_id=cfg.flow.grounding_model_id,
-                images=[video],
+                videos=[video],
                 device=device,
-                visualize_segmentation=cfg.visualize_segmentation,
             )
             save_data_compressed(flow_file, flow_traj_data[0])
-            # save_data_compressed(seg_masks_file, seg_masks[0])
+
+            # save renders as png files
+            for indx, render in enumerate(renders):
+                render.savefig(new_traj_dir / f"flow_visualization_{indx}_{suffix}.png")
 
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")
@@ -381,7 +381,7 @@ def main(cfg):
 
     # Create save directory
     save_dir = Path(cfg.tfds_data_dir) / cfg.env_name
-    save_file = save_dir / cfg.dataset_name
+    save_file = save_dir / dataset_name
     save_file.mkdir(parents=True, exist_ok=True)
 
     log(
@@ -390,7 +390,8 @@ def main(cfg):
 
     data_dir = Path(cfg.data_dir)
     log(f"Processing data from {data_dir}", "yellow")
-    preprocess_robot_data(cfg, data_dir)
+    if cfg.preprocess_data:
+        preprocess_robot_data(cfg, data_dir)
 
     if cfg.save_dataset:
         processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
