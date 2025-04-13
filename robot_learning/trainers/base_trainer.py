@@ -6,13 +6,13 @@ from typing import Dict
 import numpy as np
 import tensorflow as tf
 import torch
-import wandb
 from accelerate import Accelerator
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch.amp import GradScaler
 
 import robot_learning.utils.general_utils as gutl
+import wandb
 from robot_learning.utils.dataloader import get_dataloader
 from robot_learning.utils.general_utils import omegaconf_to_dict
 from robot_learning.utils.logger import log
@@ -46,7 +46,7 @@ class BaseTrainer:
         if hydra_cfg is not None:
             # determine if we are sweeping
             launcher = hydra_cfg.runtime["choices"]["hydra/launcher"]
-            sweep = launcher in ["slurm"]
+            sweep = "slurm" in launcher
             log(f"launcher: {launcher}, sweep: {sweep}")
 
         if self.cfg.load_from_ckpt and not self.cfg.finetune:

@@ -381,7 +381,7 @@ def main(cfg):
 
     # Create save directory
     save_dir = Path(cfg.tfds_data_dir) / cfg.env_name
-    save_file = save_dir / cfg.dataset_name
+    save_file = save_dir / dataset_name
     save_file.mkdir(parents=True, exist_ok=True)
 
     log(
