@@ -37,6 +37,21 @@ class SlideEnv(PlayTableSimEnv):
             self.scene.lights[0].reset(0)
         if "lift_blue_block_table" in self.target_tasks:
             pass # blue block is already initialized to be on the table in the config
+        if "unstack_block" in self.target_tasks:
+            # red or pink block
+            block_id = random.choice([0, 2])
+            blue_block = self.scene.movable_objects[1]
+            blue_block_state = blue_block.get_state()
+
+            # get blue block height
+            aabb_min, aabb_max = self.p.getAABB(blue_block.uid, physicsClientId=self.cid)
+            blue_block_height = aabb_max[2] - aabb_min[2]
+
+            # move other block on top of blue block
+            new_state = self.scene.movable_objects[block_id].get_state()
+            blue_block_state[2] += blue_block_height
+            new_state[:3] = blue_block_state[:3]
+            self.scene.movable_objects[block_id].reset(new_state)
 
         self.start_info = self.get_info()
         return obs

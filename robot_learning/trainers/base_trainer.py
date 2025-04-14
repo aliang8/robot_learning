@@ -37,6 +37,8 @@ class BaseTrainer:
             cfg.log_terminal_every = 5
             cfg.wandb.tags.append("debug")
 
+            cfg.env.max_episode_steps = 10
+
         # check if hydraconfig is set
         try:
             hydra_cfg = HydraConfig.get()
