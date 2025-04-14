@@ -11,6 +11,14 @@ data:
   seq_len: 5  # chunk size to predict at once
   batch_size: 64
 
+model:
+  embedding_model: resnet18
+  gaussian_policy: True
+  use_separate_gripper: True
+  input_modalities: [external_images_embeds,over_shoulder_images_embeds]
+  embedder:
+    name: hpt
+
 name: bc_ac
 hp_name: ${name}_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}_ft-${finetune}
 

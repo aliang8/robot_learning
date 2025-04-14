@@ -24,10 +24,14 @@ def episode_to_step_custom(episode, size, shift):
 def remove_fields(x, cfg):
     # delete some fields too to speed up loading
     # TODO: fix this
-    del x["over_shoulder_images"]
-    del x["points"]
-    del x["points_normalized"]
-    del x["external_images"]
+    if "over_shoulder_images" in x:
+        del x["over_shoulder_images"]
+    if "points" in x:
+        del x["points"]
+    if "points_normalized" in x:
+        del x["points_normalized"]
+    if "external_images" in x:
+        del x["external_images"]
 
     # also let's cast the embeds to float16, cause reduces memory usage
     # this halfs the training time i think cause the batch loading is much faster

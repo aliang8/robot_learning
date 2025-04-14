@@ -23,21 +23,18 @@ def create_dataset_name(cfg) -> str:
     name_parts = [cfg.dataset_name]
 
     # Add data feature indicators
-    if cfg.save_imgs:
-        name_parts.append("imgs")
-        if cfg.black_white:
-            name_parts.append("bw")
-        if cfg.framestack > 1:
-            name_parts.append(f"fs{cfg.framestack}")
+    name_parts.append("imgs")
+    if cfg.black_white:
+        name_parts.append("bw")
+    if cfg.framestack > 1:
+        name_parts.append(f"fs{cfg.framestack}")
 
-    if cfg.precompute_embeddings:
-        name_parts.append(f"emb-{cfg.embedding_model}")
+    name_parts.append(f"emb-{cfg.embedding_model}")
 
-        if "resnet" in cfg.embedding_model:
-            name_parts.append(f"l-{cfg.resnet_feature_map_layer}")
+    if "resnet" in cfg.embedding_model:
+        name_parts.append(f"l-{cfg.resnet_feature_map_layer}")
 
-    if cfg.compute_2d_flow:
-        name_parts.append("flow")
+    name_parts.append(f"flow-{cfg.flow_suffix}")
 
     # Add debug indicator if in debug mode
     if cfg.debug:
@@ -67,6 +64,7 @@ def raw_data_to_tfds(
     save_file: str,
     embedding_model: str,
     resnet_feature_map_layer: str = "avgpool",
+    flow_suffix: str = "all",
 ):
     num_transitions = 0
 
@@ -107,7 +105,7 @@ def raw_data_to_tfds(
                 img_embeds = load_data_compressed(img_embeds_file)
                 traj_data[f"{camera_type}_images_embeds"] = img_embeds
 
-        flow_file = traj_dir / "2d_flow_all.dat"
+        flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)

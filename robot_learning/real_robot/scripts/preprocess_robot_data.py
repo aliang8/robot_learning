@@ -8,20 +8,6 @@ Usage:
         compute_2d_flow=True \
         flow.text_prompt="robot. objects." \
         debug=True
-
-    python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
-        env_name=robot \
-        dataset_name=reach_green_block \
-        compute_2d_flow=False \
-        precompute_embeddings=False
-
-
-    python3 -m robot_learning.real_robot.scripts.convert_robot_to_tfds \
-        env_name=robot \
-        dataset_name=hand_demos \
-        compute_2d_flow=True \
-        precompute_embeddings=False \
-        flow.queries=[[0,430,350]]
 """
 
 import os
@@ -51,9 +37,7 @@ from robot_learning.data.preprocess import (
     compute_image_embeddings,
 )
 from robot_learning.data.utils import (
-    create_dataset_name,
     load_data_compressed,
-    raw_data_to_tfds,
     save_data_compressed,
 )
 from robot_learning.models.image_embedder import ImageEmbedder
@@ -179,32 +163,25 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Initialize necessary models!
-    if cfg.compute_2d_flow:
-        # Load SAM 2 and Grounding DINO if we are computing 2d flow
-        sam, image_predictor = load_sam_model(
-            cfg.flow.sam2_checkpoint_file, cfg.flow.model_cfg_file
-        )
-        cotracker = load_cotracker(cfg.flow.cotracker_ckpt_file)
-        cotracker = cotracker.to(device)
+    # Load SAM 2 and Grounding DINO if we are computing 2d flow
+    sam, image_predictor = load_sam_model(
+        cfg.flow.sam2_checkpoint_file, cfg.flow.model_cfg_file
+    )
+    cotracker = load_cotracker(cfg.flow.cotracker_ckpt_file)
+    cotracker = cotracker.to(device)
 
-        # If we are doing hand tracking, then we load molmo model
-        # to get the center of the hand
-        if "hand" in data_dir.name:
-            log("Loading molmo model for hand tracking", "yellow")
-            processor, molmo = load_molmo_model()
-    else:
-        image_predictor = None
-        cotracker = None
+    # If we are doing hand tracking, then we load molmo model
+    # to get the center of the hand
+    if "hand" in data_dir.name:
+        log("Loading molmo model for hand tracking", "yellow")
+        processor, molmo = load_molmo_model()
 
-    if cfg.precompute_embeddings:
-        img_embedder = ImageEmbedder(
-            model_name=cfg.embedding_model,
-            device=device,
-            feature_map_layer=cfg.resnet_feature_map_layer,
-        )
-        img_embedder = img_embedder.to(device)
-    else:
-        img_embedder = None
+    img_embedder = ImageEmbedder(
+        model_name=cfg.embedding_model,
+        device=device,
+        feature_map_layer=cfg.resnet_feature_map_layer,
+    )
+    img_embedder = img_embedder.to(device)
 
     for traj_idx, traj_dir in enumerate(
         tqdm.tqdm(traj_dirs, desc="Processing trajectories")
@@ -283,44 +260,72 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             if not img_file.exists():
                 save_data_compressed(img_file, camera_imgs[camera_type])
 
-            if "resnet" in cfg.embedding_model:
-                img_embed_file = (
-                    new_traj_dir
-                    / f"{camera_type}_img_embeds_{cfg.embedding_model}_{cfg.resnet_feature_map_layer}.dat"
-                )
-            else:
-                img_embed_file = (
-                    new_traj_dir / f"{camera_type}_img_embeds_{cfg.embedding_model}.dat"
-                )
-            if (
-                not img_embed_file.exists()
-                and camera_type != "depth"
-                and cfg.precompute_embeddings
-            ):
+            # Process all embedding types that we want to save
+            embedding_model = "dinov2_vitb14"
+
+            img_embed_file = (
+                new_traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
+            )
+            if not img_embed_file.exists() and camera_type != "depth":
                 img_embeds = compute_image_embeddings(
                     embedder=img_embedder, images=[images]
                 )[0]
                 save_data_compressed(img_embed_file, img_embeds)
 
-        if cfg.compute_2d_flow:
-            suffix = "query" if cfg.flow.queries else "all"
-            flow_file = new_traj_dir / f"2d_flow_{suffix}.dat"
+            resnet_embedding_models = ["resnet18", "resnet50"]
+            resnet_feature_map_layers = ["layer4", "avgpool"]
 
-            if flow_file.exists():
-                continue
+            for resnet_embedding_model in resnet_embedding_models:
+                for resnet_feature_map_layer in resnet_feature_map_layers:
+                    img_embed_file = (
+                        new_traj_dir
+                        / f"{camera_type}_img_embeds_{resnet_embedding_model}_{resnet_feature_map_layer}.dat"
+                    )
+                    if not img_embed_file.exists() and camera_type != "depth":
+                        img_embeds = compute_image_embeddings(
+                            embedder=img_embedder, images=[images]
+                        )[0]
+                        save_data_compressed(img_embed_file, img_embeds)
 
-            if cfg.flow.queries:
-                queries = np.array(cfg.flow.queries)
-            else:
-                queries = None
+        # Compute flow information and perform SAM 2 point tracking
 
-            video = camera_imgs["external"]
+        object_flow_file = new_traj_dir / "2d_flow_all.dat"
+        point_tracking_file = new_traj_dir / "2d_flow_query.dat"
+
+        if object_flow_file.exists() and point_tracking_file.exists():
+            return
+
+        video = camera_imgs["external"]
+        if not object_flow_file.exists():
+            flow_traj_data, renders = compute_flow_features(
+                image_predictor=image_predictor,
+                cotracker=cotracker,
+                text=cfg.flow.text_prompt,
+                queries=None,
+                grounding_model_id=cfg.flow.grounding_model_id,
+                videos=[video],
+                device=device,
+            )
+            save_data_compressed(object_flow_file, flow_traj_data[0])
+
+            # save renders as png files
+            for indx, render in enumerate(renders):
+                render.savefig(new_traj_dir / "flow_visualization_all.png")
+
+        if not point_tracking_file.exists():
+            # if cfg.flow.queries:
+            #     queries = np.array(cfg.flow.queries)
+            # else:
+            #     queries = None
+
             h, w = video.shape[1], video.shape[2]  # 1080, 1920
 
-            # Calculate target height for 1920 width to match 480:640 aspect ratio
-            # 640/480 = 1920/target_h
-            # We need this for processing videos recorded on the iphone
-            if "hand" in data_dir.name and h != 480:
+            if "hand" not in data_dir.name:
+                queries = np.array([[0, 561, 282]])
+            else:
+                # Calculate target height for 1920 width to match 480:640 aspect ratio
+                # 640/480 = 1920/target_h
+                # We need this for processing videos recorded on the iphone
                 target_h = int(1920 * (480 / 640))  # = 1440
                 # Calculate padding needed
                 pad_h = target_h - h  # 1440 - 1080 = 360
@@ -366,41 +371,19 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 videos=[video],
                 device=device,
             )
-            save_data_compressed(flow_file, flow_traj_data[0])
+            save_data_compressed(point_tracking_file, flow_traj_data[0])
 
             # save renders as png files
             for indx, render in enumerate(renders):
-                render.savefig(new_traj_dir / f"flow_visualization_{indx}_{suffix}.png")
+                render.savefig(new_traj_dir / "flow_visualization_query.png")
 
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")
 def main(cfg):
     """Main function to convert replay buffer to TFDS format."""
-    # Generate dataset name
-    dataset_name = create_dataset_name(cfg)
-
-    # Create save directory
-    save_dir = Path(cfg.tfds_data_dir) / cfg.env_name
-    save_file = save_dir / dataset_name
-    save_file.mkdir(parents=True, exist_ok=True)
-
-    log(
-        f"------------------- Saving dataset to {save_file} -------------------", "blue"
-    )
-
     data_dir = Path(cfg.data_dir)
     log(f"Processing data from {data_dir}", "yellow")
-    if cfg.preprocess_data:
-        preprocess_robot_data(cfg, data_dir)
-
-    if cfg.save_dataset:
-        processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
-        raw_data_to_tfds(
-            processed_traj_dirs,
-            save_file=save_file,
-            embedding_model=cfg.embedding_model,
-            resnet_feature_map_layer=cfg.resnet_feature_map_layer,
-        )
+    preprocess_robot_data(cfg, data_dir)
 
 
 if __name__ == "__main__":
