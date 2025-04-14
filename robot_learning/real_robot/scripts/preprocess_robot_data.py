@@ -176,12 +176,22 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         log("Loading molmo model for hand tracking", "yellow")
         processor, molmo = load_molmo_model()
 
-    img_embedder = ImageEmbedder(
-        model_name=cfg.embedding_model,
-        device=device,
-        feature_map_layer=cfg.resnet_feature_map_layer,
+    # Make different image embedders
+    image_embedders = {}
+    image_embedders["dinov2_vitb14"] = ImageEmbedder(
+        model_name="dinov2_vitb14", device=device
     )
-    img_embedder = img_embedder.to(device)
+
+    for embed_type in ["resnet18", "resnet50"]:
+        for feature_map_layer in ["layer4", "avgpool"]:
+            image_embedders[f"{embed_type}_{feature_map_layer}"] = ImageEmbedder(
+                model_name=embed_type,
+                device=device,
+                feature_map_layer=feature_map_layer,
+            )
+
+    for embed_type in image_embedders:
+        image_embedders[embed_type] = image_embedders[embed_type].to(device)
 
     for traj_idx, traj_dir in enumerate(
         tqdm.tqdm(traj_dirs, desc="Processing trajectories")
@@ -266,11 +276,11 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             img_embed_file = (
                 new_traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
             )
-            if not img_embed_file.exists() and camera_type != "depth":
-                img_embeds = compute_image_embeddings(
-                    embedder=img_embedder, images=[images]
-                )[0]
-                save_data_compressed(img_embed_file, img_embeds)
+            # if not img_embed_file.exists() and camera_type != "depth":
+            img_embeds = compute_image_embeddings(
+                embedder=image_embedders["dinov2_vitb14"], images=[images]
+            )[0]
+            save_data_compressed(img_embed_file, img_embeds)
 
             resnet_embedding_models = ["resnet18", "resnet50"]
             resnet_feature_map_layers = ["layer4", "avgpool"]
@@ -281,19 +291,21 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                         new_traj_dir
                         / f"{camera_type}_img_embeds_{resnet_embedding_model}_{resnet_feature_map_layer}.dat"
                     )
-                    if not img_embed_file.exists() and camera_type != "depth":
-                        img_embeds = compute_image_embeddings(
-                            embedder=img_embedder, images=[images]
-                        )[0]
-                        save_data_compressed(img_embed_file, img_embeds)
+                    # if not img_embed_file.exists() and camera_type != "depth":
+                    img_embeds = compute_image_embeddings(
+                        embedder=image_embedders[
+                            f"{resnet_embedding_model}_{resnet_feature_map_layer}"
+                        ],
+                        images=[images],
+                    )[0]
+                    save_data_compressed(img_embed_file, img_embeds)
 
         # Compute flow information and perform SAM 2 point tracking
-
         object_flow_file = new_traj_dir / "2d_flow_all.dat"
         point_tracking_file = new_traj_dir / "2d_flow_query.dat"
 
         if object_flow_file.exists() and point_tracking_file.exists():
-            return
+            continue
 
         video = camera_imgs["external"]
         if not object_flow_file.exists():
