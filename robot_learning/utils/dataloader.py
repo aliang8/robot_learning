@@ -24,14 +24,17 @@ def episode_to_step_custom(episode, size, shift):
 def remove_fields(x, cfg):
     # delete some fields too to speed up loading
     # TODO: fix this
-    if "over_shoulder_images" in x:
-        del x["over_shoulder_images"]
-    if "points" in x:
-        del x["points"]
-    if "points_normalized" in x:
-        del x["points_normalized"]
-    if "external_images" in x:
-        del x["external_images"]
+    del x["points"]
+    del x["points_normalized"]
+
+    for key in [
+        "over_shoulder_images",
+        "external_images",
+        "over_shoulder_images_embeds",
+        "external_images_embeds",
+    ]:
+        if key not in cfg.input_modalities:
+            del x[key]
 
     # also let's cast the embeds to float16, cause reduces memory usage
     # this halfs the training time i think cause the batch loading is much faster
@@ -156,6 +159,13 @@ def _apply_image_augmentation(
     return x
 
 
+def cast_images_to_float16(x):
+    for key in x:
+        if "images" in key and "embed" not in key:
+            x[key] = tf.cast(x[key], tf.float16)
+    return x
+
+
 def process_image(
     x,
     channel_first: bool = False,
@@ -179,6 +189,7 @@ def process_image(
             images = tf.image.resize(images, image_shape)
             images = tf.transpose(images, perm=[0, 3, 1, 2])
 
+    # TODO: check this if i use float16
     if tf.reduce_max(images) > 1:
         images = tf.cast(images, tf.float32) / 255.0
     else:
@@ -301,6 +312,15 @@ def process_dataset(
     else:
         raise ValueError(f"unknown data type: {cfg.data_type}")
 
+    # caching the dataset makes it faster in the next iteration
+    # cache after all the mapping functions, but before the shuffling
+    # also cache before augmentations so that we can random
+    # augmentations at each batch
+    if cache_file is not None:
+        ds = ds.cache(cache_file)
+    else:
+        ds = ds.cache()
+
     # Now apply augmentation AFTER n-step processing
     if apply_image_augmentation:
         log("Applying image augmentations", "yellow")
@@ -318,12 +338,8 @@ def process_dataset(
                     num_parallel_calls=tf.data.AUTOTUNE,
                 )
 
-    # caching the dataset makes it faster in the next iteration
-    # cache after all the mapping functions, but before the shuffling
-    if cache_file is not None:
-        ds = ds.cache(cache_file)
-    else:
-        ds = ds.cache()
+        # cast the images to float16 for efficiency
+        # ds = ds.map(cast_images_to_float16, num_parallel_calls=tf.data.AUTOTUNE)
 
     # shuffle the full dataset one more time
     if shuffle:  # shuffle here is for transitions
