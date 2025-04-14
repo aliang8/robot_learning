@@ -13,5 +13,7 @@ co-tracker/*
 results/*
 outputs/*
 wandb/*
+robot_learning/outputs/*
+robot_learning/real_robot/cfg/*
 robot_learning/notebooks/*
 notebooks/*
