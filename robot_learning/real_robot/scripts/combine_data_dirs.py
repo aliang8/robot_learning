@@ -2,8 +2,11 @@
 The first dir is the base dir.
 
 python3 -m robot_learning.real_robot.scripts.combine_data_dirs \
-    /scr/shared/clam/datasets/robot/play4 \
-    /scr/shared/clam/datasets/robot/play5
+    /project2/biyik_1165/aliang80/datasets/robot/play1 \
+    /project2/biyik_1165/aliang80/datasets/robot/play2 \
+    /project2/biyik_1165/aliang80/datasets/robot/play3 \
+    /project2/biyik_1165/aliang80/datasets/robot/play4 \
+    /project2/biyik_1165/aliang80/datasets/robot/play5
 
 python3 -m robot_learning.real_robot.scripts.combine_data_dirs \
     /scr/shared/clam/datasets/robot/play \

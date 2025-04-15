@@ -276,11 +276,11 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             img_embed_file = (
                 new_traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
             )
-            # if not img_embed_file.exists() and camera_type != "depth":
-            img_embeds = compute_image_embeddings(
-                embedder=image_embedders["dinov2_vitb14"], images=[images]
-            )[0]
-            save_data_compressed(img_embed_file, img_embeds)
+            if not img_embed_file.exists() and camera_type != "depth":
+                img_embeds = compute_image_embeddings(
+                    embedder=image_embedders["dinov2_vitb14"], images=[images]
+                )[0]
+                save_data_compressed(img_embed_file, img_embeds)
 
             resnet_embedding_models = ["resnet18", "resnet50"]
             resnet_feature_map_layers = ["layer4", "avgpool"]
@@ -291,14 +291,14 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                         new_traj_dir
                         / f"{camera_type}_img_embeds_{resnet_embedding_model}_{resnet_feature_map_layer}.dat"
                     )
-                    # if not img_embed_file.exists() and camera_type != "depth":
-                    img_embeds = compute_image_embeddings(
-                        embedder=image_embedders[
-                            f"{resnet_embedding_model}_{resnet_feature_map_layer}"
-                        ],
-                        images=[images],
-                    )[0]
-                    save_data_compressed(img_embed_file, img_embeds)
+                    if not img_embed_file.exists() and camera_type != "depth":
+                        img_embeds = compute_image_embeddings(
+                            embedder=image_embedders[
+                                f"{resnet_embedding_model}_{resnet_feature_map_layer}"
+                            ],
+                            images=[images],
+                        )[0]
+                        save_data_compressed(img_embed_file, img_embeds)
 
         # Compute flow information and perform SAM 2 point tracking
         object_flow_file = new_traj_dir / "2d_flow_all.dat"
