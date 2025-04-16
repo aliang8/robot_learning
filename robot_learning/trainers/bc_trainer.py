@@ -53,6 +53,56 @@ def gaussian_nll_loss(
     return nll
 
 
+def arm_gripper_loss(
+    action_preds, actions, arm_loss_fn, gripper_loss_fn, gaussian_output: bool
+):
+    # Split predictions and targets into arm and gripper components
+    if gaussian_output:
+        means = action_preds.mean
+        logvars = action_preds.logvar
+
+        arm_means_pred = means[..., :-1]
+        arm_logvars_pred = logvars[..., :-1]
+        # this is the ground truth actions
+        arm_actions = actions[..., :-1]
+
+        # Compute arm loss using NLL
+        # compute sum over timesteps of chunk
+        arm_loss = arm_loss_fn(arm_actions, arm_means_pred, arm_logvars_pred)
+        arm_loss = arm_loss.sum(dim=1)  # sum over T
+        arm_loss = arm_loss.mean()  # mean over batch
+
+        # Compute gripper loss using BCE
+        gripper_preds = means[..., -1:]
+        gripper_targets = actions[..., -1:]
+
+        gripper_loss = gripper_loss_fn(gripper_preds, gripper_targets)
+        gripper_loss = gripper_loss.sum(dim=1)  # sum over T
+        gripper_loss = gripper_loss.mean()  # mean over batch
+
+    else:
+        arm_preds = action_preds.actions[..., :-1]
+        arm_targets = actions[..., :-1]
+
+        # Compute losses
+        arm_loss = (arm_loss_fn(arm_preds, arm_targets)).mean()
+
+        gripper_preds = action_preds.actions[..., -1:]
+        gripper_targets = actions[..., -1:]
+
+        gripper_loss = gripper_loss_fn(gripper_preds, gripper_targets).mean()
+
+    # Add binary accuracy for gripper predictions
+    with torch.no_grad():
+        if gaussian_output:
+            gripper_preds = torch.sigmoid(gripper_preds) > 0.5
+        else:
+            gripper_preds = torch.sigmoid(gripper_preds) > 0.5
+        gripper_acc = (gripper_preds == gripper_targets).float().mean()
+
+    return arm_loss, gripper_loss, gripper_acc
+
+
 class BCTrainer(OfflineTrainer):
     def __init__(self, cfg: DictConfig):
         super().__init__(cfg)
@@ -145,43 +195,13 @@ class BCTrainer(OfflineTrainer):
         action_preds = self.model(model_inputs)
 
         if self.use_separate_gripper:
-            # Split predictions and targets into arm and gripper components
-            if self.model.is_gaussian:
-                means = action_preds.mean
-                logvars = action_preds.logvar
-
-                arm_means_pred = means[..., :-1]
-                arm_logvars_pred = logvars[..., :-1]
-                # this is the ground truth actions
-                arm_actions = batch.actions[..., :-1]
-
-                # Compute arm loss using NLL
-                # compute sum over timesteps of chunk
-                arm_loss = self.loss_fn(arm_actions, arm_means_pred, arm_logvars_pred)
-                arm_loss = arm_loss.sum(dim=1)  # sum over T
-                arm_loss = arm_loss.mean()  # mean over batch
-
-                # Compute gripper loss using BCE
-                gripper_preds = means[..., -1:]
-                gripper_targets = batch.actions[..., -1:]
-
-                gripper_loss = self.gripper_loss_fn(gripper_preds, gripper_targets)
-                gripper_loss = gripper_loss.sum(dim=1)  # sum over T
-                gripper_loss = gripper_loss.mean()  # mean over batch
-
-            else:
-                arm_preds = action_preds.actions[..., :-1]
-                arm_targets = batch.actions[..., :-1]
-
-                # Compute losses
-                arm_loss = (self.loss_fn(arm_preds, arm_targets)).mean()
-
-                gripper_preds = action_preds.actions[..., -1:]
-                gripper_targets = batch.actions[..., -1:]
-
-                gripper_loss = self.gripper_loss_fn(
-                    gripper_preds, gripper_targets
-                ).mean()
+            arm_loss, gripper_loss, gripper_acc = arm_gripper_loss(
+                action_preds,
+                batch.actions,
+                self.loss_fn,
+                self.gripper_loss_fn,
+                self.model.is_gaussian,
+            )
 
             # Combine losses
             loss = (
@@ -192,16 +212,7 @@ class BCTrainer(OfflineTrainer):
             # Log separate losses
             metrics["arm_loss"] = arm_loss.item()
             metrics["gripper_loss"] = gripper_loss.item()
-
-            # Add binary accuracy for gripper predictions
-            with torch.no_grad():
-                if self.model.is_gaussian:
-                    gripper_preds = torch.sigmoid(gripper_preds) > 0.5
-                else:
-                    gripper_preds = torch.sigmoid(gripper_preds) > 0.5
-                gripper_acc = (gripper_preds == gripper_targets).float().mean()
-                metrics["gripper_accuracy"] = gripper_acc.item()
-
+            metrics["gripper_accuracy"] = gripper_acc.item()
         else:
             # Use single loss function for all dimensions
             if self.model.is_gaussian:
