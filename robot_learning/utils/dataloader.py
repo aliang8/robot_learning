@@ -377,6 +377,9 @@ def get_dataloader(
     log(f"Dataset names: {dataset_names}")
     log(f"Dataset split: {dataset_split}")
 
+    if len(dataset_names) != len(dataset_split):
+        dataset_split = [1] * len(dataset_names)
+
     datasets = {}
     dataset_split = dataset_split[: len(dataset_names)]
     # convert this into a ratio
