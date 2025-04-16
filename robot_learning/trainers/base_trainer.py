@@ -6,13 +6,13 @@ from typing import Dict
 import numpy as np
 import tensorflow as tf
 import torch
+import wandb
 from accelerate import Accelerator
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 from torch.amp import GradScaler
 
 import robot_learning.utils.general_utils as gutl
-import wandb
 from robot_learning.utils.dataloader import get_dataloader
 from robot_learning.utils.general_utils import omegaconf_to_dict
 from robot_learning.utils.logger import log
@@ -66,7 +66,10 @@ class BaseTrainer:
             ckpt_file = Path(self.cfg.ckpt_file) / "config.yaml"
             model_cfg = OmegaConf.load(ckpt_file)
             # copy over the model config
-            self.cfg.model = model_cfg.model
+            if hasattr(model_cfg, "model"):
+                self.cfg.model = model_cfg.model
+            if hasattr(model_cfg, "clam_model"):
+                self.cfg.clam_model = model_cfg.clam_model
 
         log(f"experiment dir: {self.exp_dir}")
 
