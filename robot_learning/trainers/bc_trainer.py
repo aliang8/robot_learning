@@ -58,7 +58,7 @@ class BCTrainer(OfflineTrainer):
         super().__init__(cfg)
 
         # Get loss configuration
-        self.use_separate_gripper = getattr(self.cfg, "use_separate_gripper", False)
+        self.use_separate_gripper = getattr(self.cfg.model, "use_separate_gripper", False)
         self.gripper_dim = getattr(self.cfg, "gripper_dim", -1)  # default to last dim
 
         if self.use_separate_gripper:
@@ -164,6 +164,10 @@ class BCTrainer(OfflineTrainer):
                 gripper_preds = means[..., -1:]
                 gripper_targets = batch.actions[..., -1:]
 
+                if self.cfg.env.env_name == "calvin":
+                    # scale targets from [-1, 1] to [0, 1] for BCE loss
+                    gripper_targets = (gripper_targets + 1) / 2
+
                 gripper_loss = self.gripper_loss_fn(gripper_preds, gripper_targets)
                 gripper_loss = gripper_loss.sum(dim=1)  # sum over T
                 gripper_loss = gripper_loss.mean()  # mean over batch
@@ -177,6 +181,10 @@ class BCTrainer(OfflineTrainer):
 
                 gripper_preds = action_preds.actions[..., -1:]
                 gripper_targets = batch.actions[..., -1:]
+
+                if self.cfg.env.env_name == "calvin":
+                    # scale targets from [-1, 1] to [0, 1] for BCE loss
+                    gripper_targets = (gripper_targets + 1) / 2
 
                 gripper_loss = self.gripper_loss_fn(
                     gripper_preds, gripper_targets

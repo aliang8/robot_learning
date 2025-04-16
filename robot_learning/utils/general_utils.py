@@ -130,3 +130,6 @@ def convert_dict_to_namespace(d):
         return [convert_dict_to_namespace(item) for item in d]
     else:
         return d
+
+def charbonnier_loss(pred, target, eps=1e-6):
+    return torch.mean(torch.sqrt((pred - target) ** 2 + eps))

@@ -335,6 +335,11 @@ def rollout_helper(
                     model_inputs[k] = v.unsqueeze(1)
 
             actions = model.select_action(model_inputs, sample=False)
+
+            if cfg.env.env_name == "calvin" and cfg.model.use_separate_gripper:
+                # scale gripper actions from [0, 1] to [-1, 1]
+                actions[:, :, -1] = actions[:, :, -1] * 2 - 1
+
         else:
             actions = model(obs, decode_latent_action=True)
 
