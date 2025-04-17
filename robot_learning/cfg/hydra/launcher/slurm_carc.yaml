@@ -16,14 +16,16 @@ cpus_per_task: 8
 # gpus_per_node: 1
 tasks_per_node: 1
 gpus_per_task: 1
-mem_gb: 100
+mem_gb: 250
 nodes: 1
 name: ${hydra.job.name}
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 
 partition: gpu
-account: yzhao010_1531
+# account: yzhao010_1531
+account: biyik_1173
 # account: biyik_1165
+
 
 # constraint: xeon-2640v4|xeon-6130|epyc-7513
 # constraint: epyc-7282
