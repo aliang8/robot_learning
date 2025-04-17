@@ -274,14 +274,15 @@ def run_eval_rollout(
         # Run episode
         episode_start = time.time()
         for timestep in range(max_steps):
-            # Check for key press
-            key = check_key_press()
+            key = check_key_press() if timestep > 1 else None
             if key == "r":
+                key_pressed = None
                 log("\nReset requested by user", "yellow")
                 widowx_client.reset()
                 wait_for_observation(widowx_client)
                 return obs_list, actions_list, False, "Reset requested by user"
             elif key == "s":
+                key_pressed = None
                 log("\nSave and continue requested by user", "yellow")
                 return obs_list, actions_list, True, "Saved mid-trajectory by user"
 
@@ -430,11 +431,14 @@ def main(cfg: DictConfig) -> None:
             use_pretrained_img_embed = True
             break
 
+    model_cfg.model.embedding_model = "resnet50"
+    model_cfg.model.resnet_feature_map_layer = "layer4"
+
     img_embedder = None
     if use_pretrained_img_embed:
         log("Initializing image embedder...", "blue")
         img_embedder = ImageEmbedder(
-            model_name=model_cfg.model.embedding_model, device=device
+            model_name=model_cfg.model.embedding_model, device=device, feature_map_layer=model_cfg.model.resnet_feature_map_layer
         )
         img_embedder.eval()
 
@@ -487,6 +491,10 @@ def main(cfg: DictConfig) -> None:
                 agent_data, obs_dict = collect_trajectory_data(
                     obs_list, actions_list, success, notes
                 )
+
+                # TODO: temp fix for saving
+                obs_dict["images"] = np.stack((obs_dict["external_img"], obs_dict["over_shoulder_img"]), axis=1)
+                
                 saver.save_traj(episode - 1, agent_data=agent_data, obs_dict=obs_dict)
                 log("✓ Trajectory saved", "green")
 

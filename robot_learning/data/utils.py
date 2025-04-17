@@ -23,21 +23,18 @@ def create_dataset_name(cfg) -> str:
     name_parts = [cfg.dataset_name]
 
     # Add data feature indicators
-    if cfg.save_imgs:
-        name_parts.append("imgs")
-        if cfg.black_white:
-            name_parts.append("bw")
-        if cfg.framestack > 1:
-            name_parts.append(f"fs{cfg.framestack}")
+    name_parts.append("imgs")
+    if cfg.black_white:
+        name_parts.append("bw")
+    if cfg.framestack > 1:
+        name_parts.append(f"fs{cfg.framestack}")
 
-    if cfg.precompute_embeddings:
-        name_parts.append(f"emb-{cfg.embedding_model}")
+    name_parts.append(f"emb-{cfg.embedding_model}")
 
-        if "resnet" in cfg.embedding_model:
-            name_parts.append(f"l-{cfg.resnet_feature_map_layer}")
+    if "resnet" in cfg.embedding_model:
+        name_parts.append(f"l-{cfg.resnet_feature_map_layer}")
 
-    if cfg.compute_2d_flow:
-        name_parts.append("flow")
+    name_parts.append(f"flow-{cfg.flow_suffix}")
 
     # Add debug indicator if in debug mode
     if cfg.debug:
@@ -62,7 +59,13 @@ def get_base_trajectory(rew: np.ndarray):
     return trajectory
 
 
-def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str):
+def raw_data_to_tfds(
+    traj_dirs: List[str],
+    save_file: str,
+    embedding_model: str,
+    resnet_feature_map_layer: str = "avgpool",
+    flow_suffix: str = "all",
+):
     num_transitions = 0
 
     # Load trajectories
@@ -71,6 +74,7 @@ def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str)
     for dat_file in Path(traj_dir).glob("*.dat"):
         if "images" in dat_file.name and "processed" not in dat_file.name:
             available_cameras.append(dat_file.name.split("_images")[0])
+
     log(f"Available cameras: {available_cameras}", "yellow")
 
     processed_trajs = []
@@ -88,18 +92,25 @@ def raw_data_to_tfds(traj_dirs: List[str], embedding_model: str, save_file: str)
                 images = load_data_compressed(images_file)
                 traj_data[f"{camera_type}_images"] = images
 
-            img_embeds_file = (
-                traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
-            )
+            if "resnet" in embedding_model:
+                img_embeds_file = (
+                    traj_dir
+                    / f"{camera_type}_img_embeds_{embedding_model}_{resnet_feature_map_layer}.dat"
+                )
+            else:
+                img_embeds_file = (
+                    traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
+                )
             if img_embeds_file.exists():
                 img_embeds = load_data_compressed(img_embeds_file)
                 traj_data[f"{camera_type}_images_embeds"] = img_embeds
 
-        flow_file = traj_dir / "2d_flow.dat"
+        flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
 
+        log("=" * 100)
         for k, v in traj_data.items():
             if isinstance(v, np.ndarray):
                 log(f"{k}: {v.shape}")

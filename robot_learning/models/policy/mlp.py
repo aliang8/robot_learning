@@ -13,6 +13,7 @@ class MLPPolicy(BasePolicy):
         self,
         cfg: DictConfig,
         embedder: nn.Module,
+        input_dim: int = None,
         output_dim: int = None,
     ):
         super().__init__(
@@ -25,7 +26,7 @@ class MLPPolicy(BasePolicy):
 
         # Create feature extractor MLP
         self.backbone, _ = make_mlp(
-            input_dim=self.embedder.output_dim,
+            input_dim=self.embedder.output_dim if embedder else input_dim,
             net_kwargs=cfg.net,
         )
 
@@ -45,7 +46,10 @@ class MLPPolicy(BasePolicy):
                 action of shape [B, output_dim]
         """
         # Get embeddings for images and states
-        embeddings = self.embedder(inputs)
+        if self.embedder is not None:
+            embeddings = self.embedder(inputs)
+        else:
+            embeddings = inputs
 
         # Extract features
         features = self.backbone(embeddings)

@@ -6,11 +6,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
+from einops import rearrange
 from omegaconf import DictConfig, OmegaConf
 from PIL import Image
 from torchvision.models import ResNet50_Weights, resnet50
 from torchvision.models._utils import IntermediateLayerGetter
 
+from robot_learning.models.utils.transformer_utils import (
+    ACTSinusoidalPositionEmbedding2d,
+    get_pos_encoding,
+)
 from robot_learning.models.utils.utils import make_conv_net
 from robot_learning.utils.logger import log
 
@@ -350,21 +355,39 @@ class ImageEmbedder(nn.Module):
         return embeddings
 
 
+def separate_modalities(
+    input_modalities: List[str],
+) -> Tuple[List[str], List[str], List[str]]:
+    """
+    Separates the input modalities into embed, image, and state modalities.
+    """
+    embed_modalities = []
+    image_modalities = []
+    state_modalities = []
+    for modality in input_modalities:
+        if "embed" in modality:
+            embed_modalities.append(modality)
+        elif "image" in modality:
+            image_modalities.append(modality)
+        elif "state" in modality:
+            state_modalities.append(modality)
+
+    return embed_modalities, image_modalities, state_modalities
+
+
 class MultiInputEmbedder(nn.Module):
     """Handles embedding of multiple input modalities (e.g. images and states)"""
 
     def __init__(
         self,
         cfg: DictConfig,
-        input_modalities: List[str],
         state_dim: int = 0,
-        image_shape: Tuple[int, int] = None,
         seq_len: int = 1,
     ):
         super().__init__()
-        self.input_modalities = input_modalities
+        self.input_modalities = cfg.input_modalities
+        self.image_shape = (3, cfg.image_shape[0], cfg.image_shape[1])
         self.state_dim = state_dim
-        self.image_shape = image_shape
         self.seq_len = seq_len
 
         self.embedders = {}
@@ -374,13 +397,22 @@ class MultiInputEmbedder(nn.Module):
         embed_modalities = []
         image_modalities = []
 
-        for modality in input_modalities:
-            if "embed" in modality or "embedding" in modality:
-                embed_modalities.append(modality)
-            elif "image" in modality:
-                image_modalities.append(modality)
+        # for modality in cfg.input_modalities:
+        #     if "embed" in modality or "embedding" in modality:
+        #         embed_modalities.append(modality)
+        #     elif "image" in modality:
+        #         image_modalities.append(modality)
 
-        if "states" in input_modalities:
+        embed_modalities, image_modalities, state_modalities = separate_modalities(
+            self.input_modalities
+        )
+
+        # should not have both image and embed modalities
+        assert len(image_modalities) == 0 or len(embed_modalities) == 0, (
+            "Should not have both image and embed modalities"
+        )
+
+        for modality in state_modalities:
             state_embedder = nn.Sequential(
                 nn.Linear(state_dim * seq_len, cfg.embedding_dim),
                 nn.GELU(),
@@ -416,6 +448,34 @@ class MultiInputEmbedder(nn.Module):
                     "dropout": 0.1,
                 }
                 encoder_kwargs = OmegaConf.create(encoder_kwargs)
+# =======
+#             if cfg.use_custom_cnn:
+#                 # Create custom conv network to embed the images
+#                 encoder_kwargs = None
+#                 if "encoder" not in cfg:
+#                     # TODO: check this
+#                     encoder_kwargs = {
+#                         "out_channels": [64, 128, 128, 256, 256, cfg.input_embed_dim],
+#                         "kernel_size": [3] * 6,  # 3x3 kernel for all layers
+#                         "stride": [1] * 6,  # stride of 1 for all layers
+#                         "padding": [1] * 6,  # padding of 1 for all layers
+#                         "batch_norm": True,
+#                         "residual_layer": False,
+#                         "dropout": 0.1,
+#                     }
+#                     encoder_kwargs = OmegaConf.create(encoder_kwargs)
+#                 else:
+#                     encoder_kwargs = cfg.encoder
+
+#                 # TODO: add impala cnn back
+#                 image_embedder, image_embedding_dim = make_conv_net(
+#                     self.image_shape,
+#                     output_embedding_dim=cfg.embedding_dim,
+#                     net_kwargs=encoder_kwargs,
+#                     apply_output_head=True,
+#                 )
+#                 input_dim += cfg.embedding_dim
+# >>>>>>> origin/dev
             else:
                 encoder_kwargs = cfg.encoder
 
@@ -465,6 +525,145 @@ class MultiInputEmbedder(nn.Module):
         # Concatenate and fuse embeddings
         combined = torch.cat(embeds, dim=-1)
         return self.fusion_network(combined)
+
+
+class HPTEmbedder(nn.Module):
+    """
+    Embeds different modalities of data following the HPT architecture.
+    For states, we first embed to a low-dim embedding, with we use as cross attention to embeddings.
+    For images, we take the feature maps as a sequence, then cross attention.
+
+    The output is a concatenated sequence of tokens for all modalities.
+    """
+
+    def __init__(self, cfg: DictConfig, state_dim: int = 0, seq_len: int = 1):
+        super().__init__()
+        self.cfg = cfg
+
+        self.projection = {}
+        self.attention = {}
+        self.query_pos_enc = {}
+        self.key_pos_enc = {}
+
+        self.embed_modalities, self.image_modalities, self.state_modalities = (
+            separate_modalities(cfg.input_modalities)
+        )
+
+        assert len(self.image_modalities) == 0 or len(self.embed_modalities) == 0, (
+            "Should not have both image and embed modalities"
+        )
+
+        for modality in self.state_modalities:
+            # MLP to project states to embedding dim, this will be the key and values
+            if modality == "states":
+                self.projection[modality] = nn.Linear(cfg.state_dim, cfg.embedding_dim)
+                self.query_pos_enc[modality] = self.register_parameter(
+                    f"query_pos_enc_{modality}",
+                    nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
+                )
+                self.key_pos_enc[modality] = self.register_parameter(
+                    f"key_pos_enc_{modality}",
+                    nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
+                )
+
+                # Cross-attention to generate state-embedding tokens
+                self.attention[modality] = nn.MultiheadAttention(
+                    embed_dim=cfg.embedding_dim,
+                    num_heads=cfg.num_heads,
+                    dropout=0.1,
+                    batch_first=True,
+                )
+
+        for modality in self.embed_modalities:
+            # these should be feature maps from CNNs, these are the key and values
+            self.projection[modality] = nn.Linear(
+                EMBEDDING_DIMS[self.cfg.embedding_model], cfg.embedding_dim
+            )
+            self.attention[modality] = nn.MultiheadAttention(
+                embed_dim=cfg.embedding_dim,
+                num_heads=cfg.num_heads,
+                dropout=0.1,
+                batch_first=True,
+            )
+            # self.pos_enc[modality] = get_pos_encoding("learned", cfg.embedding_dim, 500)
+            self.key_pos_enc[modality] = ACTSinusoidalPositionEmbedding2d(
+                cfg.embedding_dim // 2
+            )
+            self.query_pos_enc[modality] = self.register_parameter(
+                f"query_pos_enc_{modality}",
+                nn.Parameter(get_pos_encoding("sine", cfg.embedding_dim, 500)),
+            )
+
+        self.attention = nn.ModuleDict(self.attention)
+        self.query_pos_enc = nn.ModuleDict(self.query_pos_enc)
+        self.key_pos_enc = nn.ModuleDict(self.key_pos_enc)
+        self.projection = nn.ModuleDict(self.projection)
+
+    def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Embeds different modalities of data following the HPT architecture.
+
+        Return:
+            [B, seq_len, embedding_dim]
+        """
+        embeds = []
+
+        for modality in self.state_modalities:
+            if modality in inputs:
+                # [B, D]
+                state_embedding = self.projection[modality](inputs[modality])
+
+                k = state_embedding.unsqueeze(1)
+                v = state_embedding.unsqueeze(1)
+                key_pos_enc = getattr(self, f"key_pos_enc_{modality}")
+                k = k + key_pos_enc[0:1].unsqueeze(0)
+                v = v + key_pos_enc[0:1].unsqueeze(0)
+
+                # add positional encoding to q
+                query_pos_enc = getattr(self, f"query_pos_enc_{modality}")
+                B, D = state_embedding.shape
+                q = torch.zeros(B, self.cfg.num_learnable_tokens, D).to(
+                    state_embedding.device
+                )
+                q = q + query_pos_enc[0 : self.cfg.num_learnable_tokens].unsqueeze(0)
+                state_embedding, _ = self.attention[modality](q, k, v)
+                embeds.append(state_embedding)
+
+        for modality in self.embed_modalities:
+            if modality in inputs:
+                # [B, C, H, W]
+                # cast back to float32 here for training?
+                # hopefully not problem during inference time
+                image_feature_map = inputs[modality]
+                # TODO: not sure about the pos enc here
+                # this applies the 2D sin pos encoding to the feature map
+                pos_enc = self.key_pos_enc[modality](image_feature_map)
+                # [B, C, H, W] -> [B, H*W, C]
+                image_feature_map = rearrange(image_feature_map, "B C H W -> B (H W) C")
+                pos_enc = rearrange(pos_enc, "B C H W -> B (H W) C")
+
+                # project this to embedding dim
+                image_feature_map = self.projection[modality](image_feature_map)
+                # add positional encoding to q
+                image_feature_map = image_feature_map + pos_enc
+
+                B, _, D = image_feature_map.shape
+                q = torch.zeros(B, self.cfg.num_learnable_tokens, D).to(
+                    image_feature_map.device
+                )
+                query_pos_enc = getattr(self, f"query_pos_enc_{modality}")[
+                    0 : self.cfg.num_learnable_tokens
+                ]
+                query_pos_enc = query_pos_enc.unsqueeze(0)
+                q = q + query_pos_enc
+
+                k = image_feature_map
+                v = image_feature_map
+                image_embedding, _ = self.attention[modality](q, k, v)
+                embeds.append(image_embedding)
+
+        # concatenate along the sequence dimension
+        return torch.cat(embeds, dim=1)
 
 
 if __name__ == "__main__":

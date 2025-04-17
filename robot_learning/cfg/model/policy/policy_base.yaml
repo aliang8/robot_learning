@@ -31,5 +31,16 @@ weighted_loss: False
 input_modalities:
   - states
 
+embedder:
+  name: hpt
+  max_seq_len: 500
+  embedding_dim: ${..embedding_dim}
+  input_modalities: ${..input_modalities}
+  image_shape: ${env.image_shape}
+  embedding_model: ${..embedding_model}
+  state_dim: ${env.state_dim}
+  num_learnable_tokens: 16
+  num_heads: 8
+
 defaults:
   - _self_

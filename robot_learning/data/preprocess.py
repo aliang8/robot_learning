@@ -10,6 +10,7 @@ from robot_learning.data.optical_flow.compute_flow_cotracker_util import (
     generate_point_tracks,
     get_seg_mask,
 )
+from robot_learning.data.optical_flow.visualize_flow import add_flow_to_image
 from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.general_utils import to_numpy
 from robot_learning.utils.logger import log
@@ -42,16 +43,15 @@ def compute_flow_features(
     grounding_model_id: str,
     grid_size: int = 25,
     max_query_points: int = 100,
-    images: List[np.ndarray] = None,
+    videos: List[np.ndarray] = None,
     queries: np.ndarray = None,
     device: str = "cuda",
-    visualize_segmentation: bool = False,
 ) -> List[Dict[str, np.ndarray]]:
-    """Compute optical flow features for a sequence of images."""
+    """Compute optical flow features."""
     point_tracking_results = []
-    seg_masks = []
+    renders = []
 
-    for indx, video in enumerate(tqdm.tqdm(images, desc="computing 2d flow")):
+    for indx, video in enumerate(tqdm.tqdm(videos, desc="Computing 2d flow")):
         if queries is None:
             # Segment out the table
             table_mask = get_seg_mask(
@@ -102,52 +102,49 @@ def compute_flow_features(
         viz = tracked_points["visibility"]
         mask = np.ones_like(viz)
 
-        if visualize_segmentation:
-            image = video[0] / 255.0
+        # Generate some visualizations of the masks and point tracks
+        image = video[0] / 255.0
 
-            if queries is None:
-                # Create figure with 2x2 grid
-                fig, axes = plt.subplots(2, 2, figsize=(12, 12))
-                fig.suptitle("Segmentation Visualization")
+        if queries is None:
+            # Create figure with 2x2 grid
+            fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+            fig.suptitle("Segmentation Visualization")
 
-                # Original image
-                axes[0, 0].imshow(image)
-                axes[0, 0].set_title("Original Image")
+            # Original image
+            axes[0, 0].imshow(image)
+            axes[0, 0].set_title("Original Image")
 
-                # Table segmentation mask
-                axes[0, 1].imshow(table_mask, cmap="gray")
-                axes[0, 1].set_title("Table Segmentation")
+            # Table segmentation mask
+            axes[0, 1].imshow(table_mask, cmap="gray")
+            axes[0, 1].set_title("Table Segmentation")
 
-                # Object segmentation mask
-                axes[1, 0].imshow(segm_mask, cmap="viridis")
-                axes[1, 0].set_title("Object Segmentation")
+            # Object segmentation mask
+            axes[1, 0].imshow(segm_mask, cmap="viridis")
+            axes[1, 0].set_title("Object Segmentation")
 
-                # Overlay segmentation on original image
-                overlay = image.copy()
-                # Add colored overlay for table (red) and object (blue)
-                overlay[table_mask > 0.5] = [1.0, 0.0, 0.0]  # Red for table
-                overlay[segm_mask > 0.5] = [0.0, 0.0, 1.0]  # Blue for object
-                # Blend with original image
-                overlay = 0.7 * image + 0.3 * overlay
+            # Overlay segmentation on original image
+            overlay = image.copy()
+            # Add colored overlay for table (red) and object (blue)
+            overlay[table_mask > 0.5] = [1.0, 0.0, 0.0]  # Red for table
+            overlay[segm_mask > 0.5] = [0.0, 0.0, 1.0]  # Blue for object
+            # Blend with original image
+            overlay = 0.7 * image + 0.3 * overlay
 
-                axes[1, 1].imshow(overlay)
-                axes[1, 1].set_title("Overlay")
+            axes[1, 1].imshow(overlay)
+            axes[1, 1].set_title("Overlay")
 
-                for ax in axes.flatten():
-                    ax.axis("off")
+            for ax in axes.flatten():
+                ax.axis("off")
 
-                plt.tight_layout()
-                plt.savefig(f"debug_flow_{indx}.png")
-                plt.close()
-            else:
-                fig, ax = plt.subplots(1, 1, figsize=(12, 12))
-                ax.imshow(video[0])
-
-                for query in queries:
-                    ax.scatter(query[1], query[2], color="red", marker="x", s=100)
-
-                plt.savefig(f"debug_flow_{indx}.png")
-                plt.close()
+            plt.tight_layout()
+            renders.append(fig)
+        else:
+            fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+            image = add_flow_to_image(image, points[:, 0])
+            ax.imshow(image)
+            ax.axis("off")
+            plt.tight_layout()
+            renders.append(fig)
 
         # Pad or truncate to max_query_points
         num_points = points.shape[1]
@@ -173,9 +170,7 @@ def compute_flow_features(
             }
         )
 
-        seg_masks.append(segm_mask)
-
-    return point_tracking_results, seg_masks
+    return point_tracking_results, renders
 
 
 def process_framestack(cfg, images: List[np.ndarray]) -> List[np.ndarray]:

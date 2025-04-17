@@ -181,7 +181,7 @@ def make_calvin_envs(num_envs, env_id, **kwargs):
     # Construct the path to the yaml file relative to the current file
     config_path = os.path.join(current_dir, "calvin_env.yaml")
 
-    config_path = "/home1/hongmm/p-llm-hf/robot_learning/robot_learning/envs/calvin_env.yaml"
+    config_path = "/project2/biyik_1165/hongmm/robot_learning/robot_learning/envs/calvin_env.yaml"
 
     # load config from yaml file
     with open(config_path, "r") as stream:

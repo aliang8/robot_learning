@@ -48,7 +48,7 @@ class BaseTrainer:
         if hydra_cfg is not None:
             # determine if we are sweeping
             launcher = hydra_cfg.runtime["choices"]["hydra/launcher"]
-            sweep = launcher in ["slurm"]
+            sweep = "slurm" in launcher
             log(f"launcher: {launcher}, sweep: {sweep}")
 
         if self.cfg.load_from_ckpt and not self.cfg.finetune:
@@ -62,6 +62,16 @@ class BaseTrainer:
                     self.exp_dir = Path(hydra_cfg.run.dir)
                 else:
                     self.exp_dir = Path(self.cfg.exp_dir) / self.cfg.hp_name
+
+        if self.cfg.load_from_ckpt and self.cfg.finetune:
+            # load the config frm ckpt
+            ckpt_file = Path(self.cfg.ckpt_file) / "config.yaml"
+            model_cfg = OmegaConf.load(ckpt_file)
+            # copy over the model config
+            if hasattr(model_cfg, "model"):
+                self.cfg.model = model_cfg.model
+            if hasattr(model_cfg, "clam_model"):
+                self.cfg.clam_model = model_cfg.clam_model
 
         log(f"experiment dir: {self.exp_dir}")
 

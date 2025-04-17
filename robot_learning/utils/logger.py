@@ -21,38 +21,34 @@ class InterceptHandler(logging.Handler):
         if get_rank() != 0:
             return
 
-        # Get corresponding Loguru level if it exists
-        try:
-            level = logger.level(record.levelname).name
-        except ValueError:
-            level = record.levelno
+        # Skip debug and lower level logs
+        if record.levelno < logging.INFO:
+            return
 
-        # Find caller from where originated the logged message
-        frame, depth = sys._getframe(6), 6
-        while frame and frame.f_code.co_filename == logging.__file__:
-            frame = frame.f_back
-            depth += 1
-
-        logger.opt(depth=depth, exception=record.exc_info).log(
-            level, record.getMessage()
-        )
+        # Print message in bold
+        print(f"\033[1m{record.getMessage()}\033[0m")
 
 
-# Configure loguru
-logger_format = "<level>{message}</level>"
+# Configure loguru with minimal format (just the message)
+logger_format = "{message}"
 logger.remove()
+logger.configure(
+    handlers=[{"sink": sys.stderr, "level": "INFO", "format": logger_format}]
+)
 
 # Only add handler for rank 0
 if get_rank() == 0:
     logger.add(sys.stderr, format=logger_format)
 
-# Intercept everything from the default logging system
-logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+# Intercept everything from the default logging system at INFO level and above
+logging.basicConfig(handlers=[InterceptHandler()], level=logging.INFO, force=True)
 
-# Optional: Set specific levels for some loggers
-logging.getLogger("hydra").setLevel(logging.INFO)
-logging.getLogger("filelock").setLevel(logging.INFO)
-logging.getLogger("omegaconf").setLevel(logging.INFO)
+# Set higher levels for noisy loggers
+logging.getLogger("hydra").setLevel(logging.WARNING)
+logging.getLogger("filelock").setLevel(logging.WARNING)
+logging.getLogger("omegaconf").setLevel(logging.WARNING)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 
 def log(message: str, color: str = ""):
@@ -61,6 +57,20 @@ def log(message: str, color: str = ""):
         return
 
     if color:
-        logger.opt(colors=True).info(f"<{color}>{message}</{color}>")
+        print(f"\033[1;{_get_color_code(color)}m{message}\033[0m")  # Bold and colored
     else:
-        logger.info(message)
+        print(f"\033[1m{message}\033[0m")  # Just bold
+
+
+def _get_color_code(color: str) -> str:
+    """Convert color name to ANSI color code."""
+    color_map = {
+        "red": "31",
+        "green": "32",
+        "yellow": "33",
+        "blue": "34",
+        "magenta": "35",
+        "cyan": "36",
+        "white": "37",
+    }
+    return color_map.get(color, "0")
