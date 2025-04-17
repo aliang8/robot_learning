@@ -73,7 +73,9 @@ def raw_data_to_tfds(
     traj_dir = traj_dirs[0]
     for dat_file in Path(traj_dir).glob("*.dat"):
         if "images" in dat_file.name and "processed" not in dat_file.name:
-            available_cameras.append(dat_file.name.split("_images")[0])
+            available_cameras.append(
+                dat_file.name.split("_images")[0].replace(".dat", "")
+            )
 
     log(f"Available cameras: {available_cameras}", "yellow")
 
@@ -87,10 +89,16 @@ def raw_data_to_tfds(
             if camera_type == "depth":
                 continue
 
-            images_file = traj_dir / f"{camera_type}_processed_images.dat"
+            if camera_type == "images":
+                images_file = traj_dir / "images.dat"
+                key = "images"
+            else:
+                images_file = traj_dir / f"{camera_type}_processed_images.dat"
+                key = f"{camera_type}_images"
+
             if images_file.exists():
                 images = load_data_compressed(images_file)
-                traj_data[f"{camera_type}_images"] = images
+                traj_data[key] = images
 
             if "resnet" in embedding_model:
                 img_embeds_file = (
@@ -101,11 +109,21 @@ def raw_data_to_tfds(
                 img_embeds_file = (
                     traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
                 )
+
+            if camera_type == "images":
+                img_embeds_file = Path(
+                    str(img_embeds_file).replace(f"{camera_type}_", "")
+                )
+                key = "images_embeds"
+            else:
+                key = f"{camera_type}_images_embeds"
+
             if img_embeds_file.exists():
                 img_embeds = load_data_compressed(img_embeds_file)
-                traj_data[f"{camera_type}_images_embeds"] = img_embeds
+                traj_data[key] = img_embeds
 
-        flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
+        # flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
+        flow_file = traj_dir / "2d_flow.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)

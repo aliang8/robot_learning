@@ -579,6 +579,8 @@ class HPTEmbedder(nn.Module):
         self.key_pos_enc = nn.ModuleDict(self.key_pos_enc)
         self.projection = nn.ModuleDict(self.projection)
 
+        self.output_dim = cfg.embedding_dim
+
     def forward(self, inputs: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Embeds different modalities of data following the HPT architecture.

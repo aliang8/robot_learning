@@ -24,8 +24,9 @@ def episode_to_step_custom(episode, size, shift):
 def remove_fields(x, cfg):
     # delete some fields too to speed up loading
     # TODO: fix this
-    del x["points"]
-    del x["points_normalized"]
+    # del x["points"]
+    if "points_normalized" in x:
+        del x["points_normalized"]
 
     for key in [
         "over_shoulder_images",
@@ -33,7 +34,7 @@ def remove_fields(x, cfg):
         "over_shoulder_images_embeds",
         "external_images_embeds",
     ]:
-        if key not in cfg.input_modalities:
+        if key not in cfg.input_modalities and key in x:
             del x[key]
 
     # also let's cast the embeds to float16, cause reduces memory usage
