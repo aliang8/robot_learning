@@ -79,7 +79,7 @@ def raw_data_to_tfds(
     log(f"Available cameras: {available_cameras}", "yellow")
 
     processed_trajs = []
-    for traj_dir in tqdm.tqdm(traj_dirs, desc="Loading trajectories"):
+    for i, traj_dir in tqdm.tqdm(enumerate(traj_dirs), desc="Loading trajectories"):
         traj_dir = Path(traj_dir)
         traj_data = load_data_compressed(traj_dir / "traj_data.dat")
         num_transitions += len(traj_data["actions"])
@@ -113,11 +113,10 @@ def raw_data_to_tfds(
 
         if segments is not None:
             # Filter trajectory data based on segments
-            import ipdb; ipdb.set_trace()
             traj_data = {
-                k: v[segments[0][0] : segments[0][1]]
+                k: v[segments[i][0] : segments[i][1]]
                 for k, v in traj_data.items()
-                if isinstance(v, np.ndarray)
+                # if isinstance(v, np.ndarray)
             }
 
         log("=" * 100)
