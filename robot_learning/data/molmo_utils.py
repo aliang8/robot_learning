@@ -5,6 +5,7 @@ from transformers import AutoModelForCausalLM, AutoProcessor, GenerationConfig
 
 
 def load_molmo_model():
+    
     # load the processor
     processor = AutoProcessor.from_pretrained(
         "allenai/Molmo-7B-D-0924",

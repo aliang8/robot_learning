@@ -153,20 +153,20 @@ class BCTrainer(OfflineTrainer):
             output_dim=self.cfg.env.action_dim if action_dim is None else action_dim,
         )
 
-        try:
-            if self.cfg.load_from_ckpt:
-                log("Loaded backbone from checkpoint", "green")
-                cfg, ckpt = model.load_from_ckpt(
-                    self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
-                )
+        # try:
+        if self.cfg.load_from_ckpt:
+            log("Loaded backbone from checkpoint", "green")
+            cfg, ckpt = model.load_from_ckpt(
+                self.cfg.ckpt_file, ckpt_step=self.cfg.ckpt_step
+            )
 
-                apply_lora(
-                    model,
-                    lora_r=self.cfg.lora.r,
-                    lora_alpha=self.cfg.lora.alpha,
-                )
-        except:
-            log("Failed to load backbone from checkpoint here", "red")
+            apply_lora(
+                model,
+                lora_r=self.cfg.lora.r,
+                lora_alpha=self.cfg.lora.alpha,
+            )
+        # except:
+        #     log("Failed to load backbone from checkpoint here", "red")
 
         return model
 

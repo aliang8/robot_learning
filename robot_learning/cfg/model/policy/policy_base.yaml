@@ -32,7 +32,7 @@ input_modalities:
   - states
 
 embedder:
-  name: hpt
+  name: mia
   max_seq_len: 500
   embedding_dim: ${..embedding_dim}
   input_modalities: ${..input_modalities}

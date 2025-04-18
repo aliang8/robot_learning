@@ -72,7 +72,7 @@ def del_keys(x, cfg):
     del x["is_first"]
 
     del x["mask"]
-    del x["scene_obs"]
+    # del x["scene_obs"]
     del x["timestep"]
 
     if "rewards" in x:
@@ -232,7 +232,9 @@ def process_image(
 
 
 def process_state(x, cfg, env_name):
-    x["states"] = x["observations"]
+
+    if "states" not in x:
+        x["states"] = x["observations"]
 
     states = x["states"]
     has_framestack = len(states.shape) == 3

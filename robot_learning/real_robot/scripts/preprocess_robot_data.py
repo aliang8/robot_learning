@@ -335,27 +335,27 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             if "hand" not in data_dir.name:
                 queries = np.array([[0, 561, 282]])
             else:
-                # Calculate target height for 1920 width to match 480:640 aspect ratio
-                # 640/480 = 1920/target_h
-                # We need this for processing videos recorded on the iphone
-                target_h = int(1920 * (480 / 640))  # = 1440
-                # Calculate padding needed
-                pad_h = target_h - h  # 1440 - 1080 = 360
-                pad_top = pad_h // 2  # 180
-                pad_bottom = pad_h - pad_top  # 180
+                # # Calculate target height for 1920 width to match 480:640 aspect ratio
+                # # 640/480 = 1920/target_h
+                # # We need this for processing videos recorded on the iphone
+                # target_h = int(1920 * (480 / 640))  # = 1440
+                # # Calculate padding needed
+                # pad_h = target_h - h  # 1440 - 1080 = 360
+                # pad_top = pad_h // 2  # 180
+                # pad_bottom = pad_h - pad_top  # 180
 
                 # Add padding to top and bottom (black padding)
-                video = np.pad(
-                    video,
-                    (
-                        (0, 0),  # time dimension
-                        (pad_top, pad_bottom),  # height dimension
-                        (0, 0),  # width dimension
-                        (0, 0),
-                    ),  # channels
-                    mode="constant",
-                    constant_values=0,
-                )
+                # video = np.pad(
+                #     video,
+                #     (
+                #         (0, 0),  # time dimension
+                #         (pad_top, pad_bottom),  # height dimension
+                #         (0, 0),  # width dimension
+                #         (0, 0),
+                #     ),  # channels
+                #     mode="constant",
+                #     constant_values=0,
+                # )
 
                 # take a middle frame
                 # hopefully the hand is visible from this frame

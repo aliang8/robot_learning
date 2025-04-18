@@ -65,6 +65,7 @@ def raw_data_to_tfds(
     embedding_model: str,
     resnet_feature_map_layer: str = "avgpool",
     flow_suffix: str = "all",
+    segments: List[List[int]] = None,
 ):
     num_transitions = 0
 
@@ -110,6 +111,15 @@ def raw_data_to_tfds(
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
 
+        if segments is not None:
+            # Filter trajectory data based on segments
+            import ipdb; ipdb.set_trace()
+            traj_data = {
+                k: v[segments[0][0] : segments[0][1]]
+                for k, v in traj_data.items()
+                if isinstance(v, np.ndarray)
+            }
+
         log("=" * 100)
         for k, v in traj_data.items():
             if isinstance(v, np.ndarray):
@@ -129,6 +139,7 @@ def raw_data_to_tfds(
 
     log(f"Total number of transitions: {num_transitions} collected", "green")
     save_dataset(processed_trajs, save_file)
+
 
 
 def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
