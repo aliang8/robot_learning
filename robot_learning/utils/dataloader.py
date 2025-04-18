@@ -24,9 +24,12 @@ def episode_to_step_custom(episode, size, shift):
 def remove_fields(x, cfg):
     # delete some fields too to speed up loading
     # TODO: fix this
-    # del x["points"]
+    if "points" in x:
+        del x["points"]
+
     if "points_normalized" in x:
-        del x["points_normalized"]
+        x["points_normalized"] = tf.cast(x["points_normalized"], tf.float32)
+    #     del x["points_normalized"]
 
     for key in [
         "over_shoulder_images",

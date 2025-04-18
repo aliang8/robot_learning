@@ -45,7 +45,7 @@ from robot_learning.utils.logger import log
 
 
 def load_images(
-    cfg, image_dir: str, is_depth: bool = False
+    image_dir: str, is_depth: bool = False
 ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """
     Load, process images and compute embeddings if needed.
@@ -66,40 +66,61 @@ def load_images(
     # Load images
     images = [Image.open(Path(image_dir) / img_path) for img_path in image_paths]
     images = np.array([np.array(img) for img in images])[:-1]
+    return images
 
-    # Process images differently based on type
-    if is_depth:
-        # For depth images, use numpy-based resizing to preserve depth values
-        processed_images = []
-        for img in images:
-            # Center crop [480, 640] -> [480, 480]
-            h, w = img.shape
-            start_w = (w - h) // 2
-            cropped = img[:, start_w : start_w + h]
 
-            # Resize to target size using nearest neighbor to preserve depth values
-            target_size = cfg.image_size
-            from scipy.ndimage import zoom
-
-            scale = (
-                target_size[0] / cropped.shape[0],
-                target_size[1] / cropped.shape[1],
-            )
-            resized = zoom(cropped, scale, order=0)  # order=0 for nearest neighbor
-
-            processed_images.append(resized)
-        processed_images = np.array(processed_images)
+def center_crop_depth_image(depth_image: np.ndarray) -> np.ndarray:
+    shortest_edge = min(depth_image.shape[0], depth_image.shape[1])
+    pad_h = (depth_image.shape[0] - shortest_edge) // 2
+    pad_w = (depth_image.shape[1] - shortest_edge) // 2
+    # center crop to shortest edge
+    if shortest_edge == depth_image.shape[0]:
+        depth_image = depth_image[pad_h : pad_h + shortest_edge, :]
     else:
-        # For RGB images, use tensorflow resizing
-        processed_images = [
-            tf.image.resize(
-                tf.image.crop_to_bounding_box(img, 0, 80, 480, 480), cfg.image_size
-            )
-            for img in images
-        ]
-        processed_images = np.array(processed_images)
+        depth_image = depth_image[:, pad_w : pad_w + shortest_edge]
+    return depth_image
 
-    return images, processed_images
+
+def center_crop_rgb_image(
+    image: np.ndarray,
+    y_offset: int = 120,
+) -> np.ndarray:
+    shortest_edge = min(image.shape[0], image.shape[1])
+    image = tf.image.crop_to_bounding_box(
+        image, 0, y_offset, shortest_edge, shortest_edge
+    )
+    return image
+
+
+def center_crop_and_resize_depth_images(
+    images: np.ndarray,
+    image_size: List[int] = [480, 480],
+) -> np.ndarray:
+    processed_images = []
+    for img in images:
+        cropped = center_crop_depth_image(img)
+
+        target_size = image_size
+        from scipy.ndimage import zoom
+
+        scale = (
+            target_size[0] / cropped.shape[0],
+            target_size[1] / cropped.shape[1],
+        )
+
+        resized = zoom(cropped, scale, order=0)  # order=0 for nearest neighbor
+        processed_images.append(resized)
+    processed_images = np.array(processed_images)
+    return processed_images
+
+
+def center_crop_rgb_images(images: np.ndarray, y_offset: int = 120) -> np.ndarray:
+    processed_images = []
+    for img in images:
+        cropped = center_crop_rgb_image(img, y_offset)
+        processed_images.append(cropped)
+    processed_images = np.array(processed_images)
+    return processed_images
 
 
 def load_metadata(data_file: str) -> Dict:
@@ -243,22 +264,32 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 continue
 
             is_depth = camera_type == "depth"
+            y_offset = 120 if camera_type == "external" else 80
 
-            # Load raw images and also processed images
-            # which center crops to the shortest edge
+            # Load raw images
             img_file = new_traj_dir / f"{camera_type}_images.dat"
 
             if not img_file.exists():
-                imgs, processed_imgs = load_images(cfg, camera_dir, is_depth=is_depth)
-
-                if imgs is not None:
-                    camera_imgs[f"{camera_type}"] = imgs
-                    processed_camera_imgs[f"{camera_type}"] = processed_imgs
+                imgs = load_images(camera_dir, is_depth=is_depth)
+                camera_imgs[f"{camera_type}"] = imgs
             else:
                 camera_imgs[f"{camera_type}"] = load_data_compressed(img_file)
-                processed_camera_imgs[f"{camera_type}"] = load_data_compressed(
-                    new_traj_dir / f"{camera_type}_processed_images.dat"
-                )
+
+            # Center crop and resize
+            processed_img_file = new_traj_dir / f"{camera_type}_processed_images.dat"
+            if not processed_img_file.exists():
+                if is_depth:
+                    processed_imgs = center_crop_and_resize_depth_images(
+                        camera_imgs[f"{camera_type}"], cfg.image_size
+                    )
+                else:
+                    # first center crop to shortest edge
+                    processed_imgs = center_crop_rgb_images(
+                        camera_imgs[f"{camera_type}"], y_offset
+                    )
+                    # then resize to target size
+                    processed_imgs = tf.image.resize(processed_imgs, cfg.image_size)
+                processed_camera_imgs[f"{camera_type}"] = processed_imgs
 
         # Save processed images
         for camera_type, images in camera_imgs.items():
@@ -308,6 +339,11 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             continue
 
         video = camera_imgs["external"]
+        # TODO: this is hard-coded for external camera
+        y_offset = 120
+        # run flow tracking on the CROPPED video
+        video = center_crop_rgb_images(video, y_offset)
+
         if not object_flow_file.exists():
             flow_traj_data, renders = compute_flow_features(
                 image_predictor=image_predictor,
@@ -333,7 +369,8 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
             h, w = video.shape[1], video.shape[2]  # 1080, 1920
 
             if "hand" not in data_dir.name:
-                queries = np.array([[0, 561, 282]])
+                # queries = np.array([[0, 561, 282]])
+                queries = np.array([[0, 448, 272]])  # post cropping
             else:
                 # Calculate target height for 1920 width to match 480:640 aspect ratio
                 # 640/480 = 1920/target_h
