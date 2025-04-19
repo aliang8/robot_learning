@@ -117,7 +117,8 @@ class BaseTrainer:
 
         self.wandb_run = None
         if self.cfg.mode == "train":
-            if self.cfg.load_from_ckpt or self.cfg.finetuning and not self.cfg.finetune:
+            # if self.cfg.load_from_ckpt or self.cfg.finetuning and not self.cfg.finetune: # TODO: not using this cfg
+            if self.cfg.load_from_ckpt and not self.cfg.finetune:
                 create_dirs = False
             else:
                 create_dirs = True

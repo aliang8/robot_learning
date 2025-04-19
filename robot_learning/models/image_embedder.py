@@ -166,12 +166,12 @@ class ImageEmbedder(nn.Module):
             # Set custom download path
             import os
 
-            # os.environ["TORCH_HOME"] = "/scr/aliang80/.cache/torch/hub"
+            os.environ["TORCH_HOME"] = "/scr/matthewh6/.cache/torch/hub"
 
-            # default_cache_dir = os.path.expanduser("/scr/aliang80/.cache/torch/hub")
-            # cache_dir = os.getenv("TORCH_HOME", default_cache_dir)
+            default_cache_dir = os.path.expanduser("/scr/matthewh6/.cache/torch/hub")
+            cache_dir = os.getenv("TORCH_HOME", default_cache_dir)
 
-            cache_dir = "/project2/biyik_1165/hongmm/.cache/torch/hub"
+            # cache_dir = "/project2/biyik_1165/hongmm/.cache/torch/hub"
 
             # Load model
             self.model = torch.hub.load(

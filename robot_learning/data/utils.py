@@ -34,7 +34,7 @@ def create_dataset_name(cfg) -> str:
     if "resnet" in cfg.embedding_model:
         name_parts.append(f"l-{cfg.resnet_feature_map_layer}")
 
-    name_parts.append(f"flow-{cfg.flow_suffix}")
+    # name_parts.append(f"flow-{cfg.flow_suffix}")
 
     # Add debug indicator if in debug mode
     if cfg.debug:

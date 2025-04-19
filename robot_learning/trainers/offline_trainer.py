@@ -219,6 +219,6 @@ class OfflineTrainer(BaseTrainer):
                 log(f"eval rollout: {pretty_repr(rollout_metrics)}")
 
             # also save model here
-            # self.save_model(ckpt_dict=self.save_dict, metrics=eval_metrics, iter=step)
+            self.save_model(ckpt_dict=self.save_dict, metrics=eval_metrics, iter=step)
 
             return eval_metrics
