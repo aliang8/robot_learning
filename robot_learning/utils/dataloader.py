@@ -59,7 +59,7 @@ def add_new_fields(x, cfg):
         # normalize by dividing by image size
         # TODO: do i need to account for the padding here?
         x["points"] = x["points"] / 84
-
+    
     x = del_keys(x, cfg)
 
     return x
@@ -83,8 +83,18 @@ def del_keys(x, cfg):
         del x["discount"]
     if "flow" in x:
         del x["flow"]
+    if "scene_obs" in x:
+        del x["scene_obs"]
+    if "observations" in x:
+        del x["observations"]
+    if "external_imgs" in x:
+        del x["external_imgs"]
     if "wrist_images" in x:
         del x["wrist_images"]
+    if "wrist_imgs" in x:
+        del x["wrist_imgs"]
+    if "wrist_imgs_embeds" in x:
+        del x["wrist_imgs_embeds"]
 
     if "vae" not in cfg.name and "gmflow" in x:
         del x["gmflow"]
@@ -394,13 +404,8 @@ def get_dataloader(
         if cfg.data.with_expert:
             parent_dir += "_with_expert"
         
-        if cfg.data.two_step:
+        if cfg.data.two_step_retrieval:
             parent_dir += "_two_step"
-
-        data_dir = data_dir / parent_dir
-
-    elif cfg.expert:
-        parent_dir = "expert"
 
         data_dir = data_dir / parent_dir
 

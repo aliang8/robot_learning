@@ -169,34 +169,35 @@ class BaseTrainer:
 
         log("loading train and eval datasets", "blue")
 
-        # Pass distributed parameters to get_dataloader
-        self.train_ds, self.eval_ds = get_dataloader(
-            cfg,
-            dataset_names=cfg.data.datasets,
-            dataset_split=cfg.data.dataset_split,
-            shuffle=cfg.data.shuffle,
-            distributed=self.distributed,
-            world_size=self.world_size,
-            local_rank=self.local_rank,
-        )   
+        if self.cfg.mode == "train":
+            # Pass distributed parameters to get_dataloader
+            self.train_ds, self.eval_ds = get_dataloader(
+                cfg,
+                dataset_names=cfg.data.datasets,
+                dataset_split=cfg.data.dataset_split,
+                shuffle=cfg.data.shuffle,
+                distributed=self.distributed,
+                world_size=self.world_size,
+                local_rank=self.local_rank,
+            )   
 
-        # combine them and uniformly sample from them
-        self.train_dataloader = tf.data.Dataset.sample_from_datasets(
-            list(self.train_ds.values())
-        )
-        self.eval_dataloader = tf.data.Dataset.sample_from_datasets(
-            list(self.eval_ds.values())
-        )
+            # combine them and uniformly sample from them
+            self.train_dataloader = tf.data.Dataset.sample_from_datasets(
+                list(self.train_ds.values())
+            )
+            self.eval_dataloader = tf.data.Dataset.sample_from_datasets(
+                list(self.eval_ds.values())
+            )
 
-        # print batch item shapes
-        # determine obs_shape based on the dataset
-        batch = next(self.train_dataloader.as_numpy_iterator())
+            # print batch item shapes
+            # determine obs_shape based on the dataset
+            batch = next(self.train_dataloader.as_numpy_iterator())
 
-        log("=" * 100)
-        log("Shapes of batch items:")
-        for k, v in batch.items():
-            log(f"{k}: {v.shape}, {v.dtype}, {v.min()}, {v.max()}, {v.mean()}")
-        log("=" * 100)
+            log("=" * 100)
+            log("Shapes of batch items:")
+            for k, v in batch.items():
+                log(f"{k}: {v.shape}, {v.dtype}, {v.min()}, {v.max()}, {v.mean()}")
+            log("=" * 100)
 
         # figure out how many update steps between each validation step
         if self.cfg.eval_every != -1:
