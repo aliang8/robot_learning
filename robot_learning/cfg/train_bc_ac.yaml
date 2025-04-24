@@ -6,10 +6,10 @@ log_rollout_videos: False
 use_separate_gripper: True
 gripper_pos_weight: 0.1
 
-data: 
-  data_type: n_step
-  seq_len: 5  # chunk size to predict at once
-  batch_size: 64
+# data: 
+#   data_type: n_step
+#   seq_len: 5  # chunk size to predict at once
+#   batch_size: 64
 
 model:
   embedding_model: resnet18
@@ -26,6 +26,14 @@ wandb:
   tags:
     - ${data.num_trajs}
     - ${run_id}
+
+data:
+  data_type: n_step
+  seq_len: 10
+
+  # retrieval cfgs
+  with_expert: False
+  two_step_retrieval: False
 
 defaults:
   - base

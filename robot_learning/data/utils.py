@@ -66,6 +66,7 @@ def raw_data_to_tfds(
     resnet_feature_map_layer: str = "avgpool",
     flow_suffix: str = "all",
     segments: List[List[int]] = None,
+    costs: List[float] = None,
 ):
     num_transitions = 0
 
@@ -110,6 +111,10 @@ def raw_data_to_tfds(
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
+
+        # Add costs if provided
+        if costs is not None:
+            traj_data["costs"] = np.full(len(traj_data["actions"]), costs[i])
 
         if segments is not None:
             # Filter trajectory data based on segments

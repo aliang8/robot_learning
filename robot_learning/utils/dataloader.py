@@ -85,8 +85,8 @@ def del_keys(x, cfg):
         del x["flow"]
     if "scene_obs" in x:
         del x["scene_obs"]
-    if "observations" in x:
-        del x["observations"]
+    # if "observations" in x:
+    #     del x["observations"]
     if "external_imgs" in x:
         del x["external_imgs"]
     if "wrist_images" in x:
