@@ -393,7 +393,7 @@ def get_dataloader(
     total_trajs = 0
     ds_to_len = {}
     for ds_name in dataset_names:
-        save_file = data_dir / cfg.data.dataset_name / ds_name
+        save_file = data_dir / cfg.env.env_name / ds_name
         ds = tf.data.Dataset.load(str(save_file))
 
         if data_cfg.load_latent_actions:

@@ -26,18 +26,18 @@ shuffle: True
 load_latent_actions: False
 load_relabelled_actions: False # for VPT
 
-dataset_name: test
+env_name: ${env.env_name}
 
 datasets: 
   - test
 dataset_split: [1] # amount of each dataset to use for training, ratios 
  
-action_labeled_ds: 
+al_ds: 
   - test
-action_labeled_ds_split: [1] 
+al_ds_split: [1] 
 
-ds_name: ${fix_ds_name:${data.datasets},${data.dataset_name},${data.dataset_split}}
-al_ds_name: ${fix_ds_name:${data.action_labeled_ds},${data.dataset_name},${data.action_labeled_ds_split}}
+ds_name: ${fix_ds_name:${data.datasets},${env.env_name},${data.dataset_split}}
+al_ds_name: ${fix_ds_name:${data.al_ds},${env.env_name},${data.al_ds_split}}
 
 input_modalities: ${model.input_modalities}
 

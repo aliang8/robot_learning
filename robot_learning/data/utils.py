@@ -122,8 +122,7 @@ def raw_data_to_tfds(
                 img_embeds = load_data_compressed(img_embeds_file)
                 traj_data[key] = img_embeds
 
-        # flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
-        flow_file = traj_dir / "2d_flow.dat"
+        flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)

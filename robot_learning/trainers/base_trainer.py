@@ -14,14 +14,13 @@ from torch.amp import GradScaler
 
 import robot_learning.utils.general_utils as gutl
 from robot_learning.utils.dataloader import get_dataloader
-from robot_learning.utils.general_utils import omegaconf_to_dict
+from robot_learning.utils.general_utils import omegaconf_to_dict, compact_overrides
 from robot_learning.utils.logger import log
 
 # Initialize distributed-related imports only if CUDA is available
 if torch.cuda.is_available():
     import torch.distributed as dist
     from torch.nn.parallel import DistributedDataParallel as DDP
-
 
 class BaseTrainer:
     def __init__(self, cfg: DictConfig):
@@ -49,17 +48,19 @@ class BaseTrainer:
             sweep = "slurm" in launcher
             log(f"launcher: {launcher}, sweep: {sweep}")
 
+        # compress the overrides to a key
+        overrides = hydra_cfg["overrides"]["task"]
+        overrides = [(k,v) for k,v in (val.split("=") for val in overrides)]
+        overrides_key = compact_overrides(overrides)
+
         if self.cfg.load_from_ckpt and not self.cfg.finetune:
             # if we are loading from checkpoint, we don't need to make new dirs
-            self.exp_dir = Path(self.cfg.exp_dir)
+            self.exp_dir = Path(self.cfg.exp_dir) / overrides_key
         else:
             if hydra_cfg and sweep:
-                self.exp_dir = Path(hydra_cfg.sweep.dir) / hydra_cfg.sweep.subdir
+                self.exp_dir = Path(hydra_cfg.sweep.dir) / overrides_key
             else:
-                if not self.cfg.exp_dir:
-                    self.exp_dir = Path(hydra_cfg.run.dir)
-                else:
-                    self.exp_dir = Path(self.cfg.exp_dir) / self.cfg.hp_name
+                self.exp_dir = Path(hydra_cfg.run.dir) / overrides_key
 
         if self.cfg.load_from_ckpt and self.cfg.finetune:
             # load the config frm ckpt
@@ -132,7 +133,7 @@ class BaseTrainer:
                 # save config to yaml file
                 OmegaConf.save(self.cfg, f=self.exp_dir / "config.yaml")
 
-                wandb_name = self.cfg.wandb.name
+                wandb_name = overrides_key
                 if self.cfg.use_wandb:
                     self.wandb_run = wandb.init(
                         # set the wandb project where this run will be logged
@@ -153,10 +154,6 @@ class BaseTrainer:
         self.start_update = 0
 
         # create env
-        # log(f"creating {self.cfg.env.env_name} environments...")
-
-        # self.envs = make_envs(**self.cfg.env)
-
         if cfg.best_metric == "max":
             self.best_metric = float("-inf")
         else:

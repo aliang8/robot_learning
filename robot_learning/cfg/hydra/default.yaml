@@ -7,8 +7,7 @@ run:
 
 sweep:
   dir: ${paths.results_dir}/${run_id}/${name}
-  subdir: ${hp_name}
-
+  
 job_logging:
   root:
     handlers: [file, console]

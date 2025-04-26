@@ -7,6 +7,25 @@ import torch
 import yaml
 from omegaconf import DictConfig
 
+def compact_overrides(kv_list):
+    result = []
+    
+    for k, v in kv_list:
+        if '.' in k:
+            parts = k.split('.')
+            shortened_key = '.'.join([part[:1] if len(part) <= 2 else part[:2] for part in parts])
+        elif '_' in k:
+            parts = k.split('_')
+            shortened_key = '_'.join([part[:1] if len(part) <= 2 else part[:2] for part in parts])
+        else:
+            # If no separator, take first two chars if available
+            shortened_key = k[:1] if len(k) <= 2 else k[:2]
+        
+        # Combine shortened key with value using '='
+        result.append(f"{shortened_key}={v}")
+    
+    return ','.join(result)
+
 
 def format_dict_keys(dictionary, format_fn):
     """Returns new dict with `format_fn` applied to keys in `dictionary`."""
