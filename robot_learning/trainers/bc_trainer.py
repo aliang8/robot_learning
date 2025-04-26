@@ -122,8 +122,8 @@ class BCTrainer(OfflineTrainer):
         if self.model.is_gaussian:
             self.loss_fn = gaussian_nll_loss
         else:
-            # self.loss_fn = nn.MSELoss(reduction="none")
-            self.loss_fn = nn.L1Loss(reduction="none")
+            self.loss_fn = nn.MSELoss(reduction="none")
+            # self.loss_fn = nn.L1Loss(reduction="none")
 
     def setup_model(self, action_dim: int = None):
         # Input action dim in case we are doing CLAM policy training
