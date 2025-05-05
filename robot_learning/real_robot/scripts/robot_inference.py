@@ -331,10 +331,12 @@ def run_eval_rollout(
                     inputs[modality] = torch.stack(
                         list(input_mode_queues[modality]), dim=1
                     ).to(device)
-                elif "image" in modality: # the embedder is in the model
+                elif "image" in modality:  # the embedder is in the model
                     # make it [C, H, W]
                     inputs[modality] = (
-                        torch.from_numpy(np.stack(list(input_mode_queues[modality]), axis=0))
+                        torch.from_numpy(
+                            np.stack(list(input_mode_queues[modality]), axis=0)
+                        )
                         .float()
                         .to(device)
                         .permute(0, 3, 1, 2)
@@ -438,7 +440,9 @@ def main(cfg: DictConfig) -> None:
     if use_pretrained_img_embed:
         log("Initializing image embedder...", "blue")
         img_embedder = ImageEmbedder(
-            model_name=model_cfg.model.embedding_model, device=device, feature_map_layer=model_cfg.model.resnet_feature_map_layer
+            model_name=model_cfg.model.embedding_model,
+            device=device,
+            feature_map_layer=model_cfg.model.resnet_feature_map_layer,
         )
         img_embedder.eval()
 
@@ -493,8 +497,10 @@ def main(cfg: DictConfig) -> None:
                 )
 
                 # TODO: temp fix for saving
-                obs_dict["images"] = np.stack((obs_dict["external_img"], obs_dict["over_shoulder_img"]), axis=1)
-                
+                obs_dict["images"] = np.stack(
+                    (obs_dict["external_img"], obs_dict["over_shoulder_img"]), axis=1
+                )
+
                 saver.save_traj(episode - 1, agent_data=agent_data, obs_dict=obs_dict)
                 log("✓ Trajectory saved", "green")
 

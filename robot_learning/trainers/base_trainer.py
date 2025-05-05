@@ -51,6 +51,17 @@ class BaseTrainer:
             sweep = "slurm" in launcher
             log(f"launcher: {launcher}, sweep: {sweep}")
 
+<<<<<<< HEAD
+=======
+        # compress the overrides to a key
+        overrides = hydra_cfg["overrides"]["task"]
+        overrides = [
+            (k, v)
+            for k, v in (val.split("=") for val in overrides if "ckpt_file" not in val)
+        ]
+        overrides_key = compact_overrides(overrides)
+
+>>>>>>> dc6a638 (edits for hand)
         if self.cfg.load_from_ckpt and not self.cfg.finetune:
             # if we are loading from checkpoint, we don't need to make new dirs
             self.exp_dir = Path(self.cfg.exp_dir)

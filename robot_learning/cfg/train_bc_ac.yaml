@@ -1,3 +1,6 @@
+name: bc_ac
+hp_name: ${name}_d-${data.datasets}_s-${seed}_${env.hp_name}_lr-${optimizer.params.lr}
+
 num_updates: 20_000
 log_terminal_every: 1000 
 run_eval_rollouts: False
@@ -19,8 +22,12 @@ model:
   embedder:
     name: hpt
 
+<<<<<<< HEAD
 name: bc_ac
 hp_name: ${name}_nt-${data.num_trajs}_d-${data.ds_name}_s-${seed}_${env.hp_name}_gp-${model.gaussian_policy}_net-${model.hp_name}_lr-${optimizer.params.lr}_ft-${finetune}
+=======
+
+>>>>>>> dc6a638 (edits for hand)
 
 wandb:
   tags:

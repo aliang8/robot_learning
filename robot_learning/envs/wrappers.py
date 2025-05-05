@@ -5,6 +5,11 @@ import gymnasium
 import gymnasium.spaces as spaces
 import numpy as np
 from gymnasium.envs.mujoco.mujoco_rendering import MujocoRenderer
+<<<<<<< HEAD
+=======
+from PIL import Image
+from torchvision import transforms as T
+>>>>>>> dc6a638 (edits for hand)
 
 DEFAULT_CAMERA_CONFIG = {
     "distance": 1.25,

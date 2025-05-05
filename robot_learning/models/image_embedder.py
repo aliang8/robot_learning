@@ -252,9 +252,9 @@ class ImageEmbedder(nn.Module):
             assert images[0].ndim == 3, "Images must be 3D numpy array"
             assert images[0].shape[2] == 3, "Images must have 3 channels"
             # assert between [0, 255]
-            assert images[0].max() > 1.0 and images[0].min() >= 0.0, (
-                "Images must be normalized to [0, 255]"
-            )
+            assert (
+                images[0].max() > 1.0 and images[0].min() >= 0.0
+            ), "Images must be normalized to [0, 255]"
 
             # List of numpy arrays
             processed = torch.stack(
@@ -271,9 +271,9 @@ class ImageEmbedder(nn.Module):
                 assert images.shape[2] == 3, "Images must have 3 channels"
 
             # assert between [0, 255]
-            assert images.max() > 1.0 and images.min() >= 0.0, (
-                "Images must be normalized to [0, 255]"
-            )
+            assert (
+                images.max() > 1.0 and images.min() >= 0.0
+            ), "Images must be normalized to [0, 255]"
 
             if images.ndim == 3:
                 # Single numpy image
@@ -294,12 +294,12 @@ class ImageEmbedder(nn.Module):
 
             # addd some sanity checks to input
             assert images.ndim == 4, "Images must be 4D tensor"
-            assert images.max() <= 1.0 and images.min() >= 0.0, (
-                "Images must be normalized to [0, 1]"
-            )
-            assert images.shape[1] == 3, (
-                "Images must have 3 channels and be in CHW format"
-            )
+            assert (
+                images.max() <= 1.0 and images.min() >= 0.0
+            ), "Images must be normalized to [0, 1]"
+            assert (
+                images.shape[1] == 3
+            ), "Images must have 3 channels and be in CHW format"
 
             processed = torch.stack(
                 [
@@ -345,9 +345,9 @@ class ImageEmbedder(nn.Module):
                 embeddings = embeddings.flatten(1)
         elif self.model_name == "r3m":
             # R3M expects values between 0 and 255
-            assert processed.max() <= 1.0 and processed.min() >= 0.0, (
-                "Images must be normalized to [0, 1]"
-            )
+            assert (
+                processed.max() <= 1.0 and processed.min() >= 0.0
+            ), "Images must be normalized to [0, 1]"
             embeddings = self.model(processed * 255.0)
         elif self.model_name.startswith("dinov2"):
             # DINOv2 returns CLS token by default
@@ -403,16 +403,16 @@ class MultiInputEmbedder(nn.Module):
 
         input_dim = 0
 
-        embed_modalities = []
-        image_modalities = []
+        embed_modalities, image_modalities, state_modalities = separate_modalities(
+            self.input_modalities
+        )
 
-        for modality in self.input_modalities:
-            if "embed" in modality or "embedding" in modality:
-                embed_modalities.append(modality)
-            elif "image" in modality:
-                image_modalities.append(modality)
+        # should not have both image and embed modalities
+        assert (
+            len(image_modalities) == 0 or len(embed_modalities) == 0
+        ), "Should not have both image and embed modalities"
 
-        if "states" in self.input_modalities:
+        for modality in state_modalities:
             state_embedder = nn.Sequential(
                 nn.Linear(state_dim * seq_len, cfg.embedding_dim),
                 nn.GELU(),
@@ -521,9 +521,9 @@ class HPTEmbedder(nn.Module):
             separate_modalities(cfg.input_modalities)
         )
 
-        assert len(self.image_modalities) == 0 or len(self.embed_modalities) == 0, (
-            "Should not have both image and embed modalities"
-        )
+        assert (
+            len(self.image_modalities) == 0 or len(self.embed_modalities) == 0
+        ), "Should not have both image and embed modalities"
 
         for modality in self.state_modalities:
             # MLP to project states to embedding dim, this will be the key and values
