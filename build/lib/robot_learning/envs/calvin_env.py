@@ -52,6 +52,8 @@ class SlideEnv(PlayTableSimEnv):
             blue_block_state[2] += blue_block_height
             new_state[:3] = blue_block_state[:3]
             self.scene.movable_objects[block_id].reset(new_state)
+        if "push_into_drawer" in self.target_tasks:
+            self.scene.doors[1].reset(random.uniform(0.12, 0.2))
 
         self.start_info = self.get_info()
         return obs

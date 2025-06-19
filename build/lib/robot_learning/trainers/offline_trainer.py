@@ -181,8 +181,9 @@ class OfflineTrainer(BaseTrainer):
                 batch = gutl.to_device(batch, self.device)
                 batch = Batch.create(**batch)
 
-                with torch.no_grad():
-                    metrics, total_eval_loss = self.compute_loss(batch, train=False)
+                with torch.amp.autocast("cuda"):
+                    with torch.no_grad():
+                        metrics, total_eval_loss = self.compute_loss(batch, train=False)
 
                 for k, v in metrics.items():
                     eval_metrics[k].append(v)

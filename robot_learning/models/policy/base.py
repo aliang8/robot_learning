@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -14,9 +14,9 @@ class ActionOutput:
     """Container for policy outputs."""
 
     actions: torch.Tensor
-    mean: torch.Tensor | None = None
-    logvar: torch.Tensor | None = None
-    std: torch.Tensor | None = None
+    mean: Optional[torch.Tensor] = None
+    logvar: Optional[torch.Tensor] = None
+    std: Optional[torch.Tensor] = None
 
     @property
     def is_gaussian(self) -> bool:

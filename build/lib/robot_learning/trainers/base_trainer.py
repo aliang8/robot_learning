@@ -48,9 +48,20 @@ class BaseTrainer:
         if hydra_cfg is not None:
             # determine if we are sweeping
             launcher = hydra_cfg.runtime["choices"]["hydra/launcher"]
-            sweep = launcher in ["slurm"]
+            sweep = "slurm" in launcher
             log(f"launcher: {launcher}, sweep: {sweep}")
 
+<<<<<<< HEAD
+=======
+        # compress the overrides to a key
+        overrides = hydra_cfg["overrides"]["task"]
+        overrides = [
+            (k, v)
+            for k, v in (val.split("=") for val in overrides if "ckpt_file" not in val)
+        ]
+        overrides_key = compact_overrides(overrides)
+
+>>>>>>> dc6a638 (edits for hand)
         if self.cfg.load_from_ckpt and not self.cfg.finetune:
             # if we are loading from checkpoint, we don't need to make new dirs
             self.exp_dir = Path(self.cfg.exp_dir)
@@ -62,6 +73,16 @@ class BaseTrainer:
                     self.exp_dir = Path(hydra_cfg.run.dir)
                 else:
                     self.exp_dir = Path(self.cfg.exp_dir) / self.cfg.hp_name
+
+        if self.cfg.load_from_ckpt and self.cfg.finetune:
+            # load the config frm ckpt
+            ckpt_file = Path(self.cfg.ckpt_file) / "config.yaml"
+            model_cfg = OmegaConf.load(ckpt_file)
+            # copy over the model config
+            if hasattr(model_cfg, "model"):
+                self.cfg.model = model_cfg.model
+            if hasattr(model_cfg, "clam_model"):
+                self.cfg.clam_model = model_cfg.clam_model
 
         log(f"experiment dir: {self.exp_dir}")
 
@@ -107,7 +128,8 @@ class BaseTrainer:
 
         self.wandb_run = None
         if self.cfg.mode == "train":
-            if self.cfg.load_from_ckpt or self.cfg.finetuning and not self.cfg.finetune:
+            # if self.cfg.load_from_ckpt or self.cfg.finetuning and not self.cfg.finetune: # TODO: not using this cfg
+            if self.cfg.load_from_ckpt and not self.cfg.finetune:
                 create_dirs = False
             else:
                 create_dirs = True
@@ -158,34 +180,35 @@ class BaseTrainer:
 
         log("loading train and eval datasets", "blue")
 
-        # Pass distributed parameters to get_dataloader
-        self.train_ds, self.eval_ds = get_dataloader(
-            cfg,
-            dataset_names=cfg.data.datasets,
-            dataset_split=cfg.data.dataset_split,
-            shuffle=cfg.data.shuffle,
-            distributed=self.distributed,
-            world_size=self.world_size,
-            local_rank=self.local_rank,
-        )   
+        if self.cfg.mode == "train":
+            # Pass distributed parameters to get_dataloader
+            self.train_ds, self.eval_ds = get_dataloader(
+                cfg,
+                dataset_names=cfg.data.datasets,
+                dataset_split=cfg.data.dataset_split,
+                shuffle=cfg.data.shuffle,
+                distributed=self.distributed,
+                world_size=self.world_size,
+                local_rank=self.local_rank,
+            )   
 
-        # combine them and uniformly sample from them
-        self.train_dataloader = tf.data.Dataset.sample_from_datasets(
-            list(self.train_ds.values())
-        )
-        self.eval_dataloader = tf.data.Dataset.sample_from_datasets(
-            list(self.eval_ds.values())
-        )
+            # combine them and uniformly sample from them
+            self.train_dataloader = tf.data.Dataset.sample_from_datasets(
+                list(self.train_ds.values())
+            )
+            self.eval_dataloader = tf.data.Dataset.sample_from_datasets(
+                list(self.eval_ds.values())
+            )
 
-        # print batch item shapes
-        # determine obs_shape based on the dataset
-        batch = next(self.train_dataloader.as_numpy_iterator())
+            # print batch item shapes
+            # determine obs_shape based on the dataset
+            batch = next(self.train_dataloader.as_numpy_iterator())
 
-        log("=" * 100)
-        log("Shapes of batch items:")
-        for k, v in batch.items():
-            log(f"{k}: {v.shape}, {v.dtype}, {v.min()}, {v.max()}, {v.mean()}")
-        log("=" * 100)
+            log("=" * 100)
+            log("Shapes of batch items:")
+            for k, v in batch.items():
+                log(f"{k}: {v.shape}, {v.dtype}, {v.min()}, {v.max()}, {v.mean()}")
+            log("=" * 100)
 
         # figure out how many update steps between each validation step
         if self.cfg.eval_every != -1:

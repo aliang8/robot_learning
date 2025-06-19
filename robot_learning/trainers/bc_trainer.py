@@ -5,7 +5,6 @@ from omegaconf import DictConfig
 
 from robot_learning.models.image_embedder import HPTEmbedder, MultiInputEmbedder
 from robot_learning.models.lora import apply_lora
-from robot_learning.models.policy import POLICY_CLS_MAP
 from robot_learning.trainers.offline_trainer import OfflineTrainer
 from robot_learning.utils.logger import log
 
