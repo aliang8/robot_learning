@@ -177,8 +177,19 @@ class ActionChunkingTransformerPolicy(BasePolicy):
         # we just need the first timestep for each modality
         embed_inputs = {k: v[:, 0] for k, v in inputs.items()}
 
+        import ipdb; ipdb.set_trace()  # noqa: E702
+        if "lang_embeds" in embed_inputs:
+            lang_embeds = embed_inputs["lang_embeds"]
+            embed_inputs.pop("lang_embeds", None)
+
         # Get embeddings for each input and then predict a sequence of actions
         embeddings = self.embedder(embed_inputs)
+
+        import ipdb; ipdb.set_trace()  # noqa: E702
+        if "lang_embeds" in inputs:
+            embeddings = torch.cat(
+                [embeddings, lang_embeds.unsqueeze(1)], dim=1
+            )
         # embeddings = einops.repeat(embeddings, "B E -> B T E", T=self.cfg.seq_len)
 
         # # Pass through the transformer decoder repeated for each timestep

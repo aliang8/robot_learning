@@ -14,7 +14,7 @@ from torch.amp import GradScaler
 
 import robot_learning.utils.general_utils as gutl
 from robot_learning.utils.dataloader import get_dataloader
-from robot_learning.utils.general_utils import omegaconf_to_dict, compact_overrides
+from robot_learning.utils.general_utils import compact_overrides, omegaconf_to_dict
 from robot_learning.utils.logger import log
 
 # Initialize distributed-related imports only if CUDA is available
@@ -50,7 +50,7 @@ class BaseTrainer:
 
         # compress the overrides to a key
         overrides = hydra_cfg["overrides"]["task"]
-        overrides = [(k,v) for k,v in (val.split("=") for val in overrides)]
+        overrides = [(k,v) for k,v in (val.split("=") for val in overrides if "ckpt_file" not in val)]
         overrides_key = compact_overrides(overrides)
 
         if self.cfg.load_from_ckpt and not self.cfg.finetune:

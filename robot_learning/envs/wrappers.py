@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gymnasium.envs.mujoco.mujoco_rendering import MujocoRenderer
 from PIL import Image
-from r3m import load_r3m
 from torchvision import transforms as T
 
 DEFAULT_CAMERA_CONFIG = {

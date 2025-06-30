@@ -12,10 +12,12 @@ Usage:
 
 import os
 import re
+from email.mime import image
 from glob import glob
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+import clip
 import hydra
 import numpy as np
 import tensorflow as tf
@@ -43,6 +45,8 @@ from robot_learning.data.utils import (
 from robot_learning.models.image_embedder import ImageEmbedder
 from robot_learning.utils.logger import log
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+clip_model, preprocess = clip.load("ViT-B/32", device=device)
 
 def load_images(
     image_dir: str, is_depth: bool = False
@@ -294,12 +298,20 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         # Save processed images
         for camera_type, images in camera_imgs.items():
             img_file = new_traj_dir / f"{camera_type}_processed_images.dat"
+
             if not img_file.exists():
                 save_data_compressed(img_file, processed_camera_imgs[camera_type])
 
             img_file = new_traj_dir / f"{camera_type}_images.dat"
             if not img_file.exists():
                 save_data_compressed(img_file, camera_imgs[camera_type])
+
+            # save the raw images to a folder as jpgs TODO: this is for labeling the language
+            raw_images_dir = new_traj_dir / f"{camera_type}_raw_images"
+            raw_images_dir.mkdir(parents=True, exist_ok=True)
+            for i, img in enumerate(camera_imgs[camera_type]):
+                img = Image.fromarray(img)
+                img.save(raw_images_dir / f"{i:06d}.jpg")
 
             # Process all embedding types that we want to save
             embedding_model = "dinov2_vitb14"
@@ -311,6 +323,23 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
                 img_embeds = compute_image_embeddings(
                     embedder=image_embedders["dinov2_vitb14"], images=[images]
                 )[0]
+                save_data_compressed(img_embed_file, img_embeds)
+
+            # Process all embedding types that we want to save
+            embedding_model = "clip_vitb32"
+
+            img_embed_file = (
+                new_traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
+            )
+            if not img_embed_file.exists() and camera_type != "depth":
+                image =  torch.stack([
+                    preprocess(Image.fromarray(image)).to(device)
+                    for image in images
+                ])
+
+                with torch.no_grad():
+                    img_embeds = clip_model.encode_image(image)
+                
                 save_data_compressed(img_embed_file, img_embeds)
 
             resnet_embedding_models = ["resnet18", "resnet50"]
@@ -335,96 +364,97 @@ def preprocess_robot_data(cfg: DictConfig, data_dir: Path):
         object_flow_file = new_traj_dir / "2d_flow_all.dat"
         point_tracking_file = new_traj_dir / "2d_flow_query.dat"
 
-        if object_flow_file.exists() and point_tracking_file.exists():
-            continue
+        # if object_flow_file.exists() and point_tracking_file.exists():
+        #     continue
 
         video = camera_imgs["external"]
         # TODO: this is hard-coded for external camera
-        y_offset = 120
-        # run flow tracking on the CROPPED video
-        video = center_crop_rgb_images(video, y_offset)
+        # y_offset = 120
+        # # run flow tracking on the CROPPED video
+        # video = center_crop_rgb_images(video, y_offset)
+        # import ipdb; ipdb.set_trace()
 
-        if not object_flow_file.exists():
-            flow_traj_data, renders = compute_flow_features(
-                image_predictor=image_predictor,
-                cotracker=cotracker,
-                text=cfg.flow.text_prompt,
-                queries=None,
-                grounding_model_id=cfg.flow.grounding_model_id,
-                videos=[video],
-                device=device,
-            )
-            save_data_compressed(object_flow_file, flow_traj_data[0])
+        # if not object_flow_file.exists():
+        flow_traj_data, renders = compute_flow_features(
+            image_predictor=image_predictor,
+            cotracker=cotracker,
+            text=cfg.flow.text_prompt,
+            queries=None,
+            grounding_model_id=cfg.flow.grounding_model_id,
+            videos=[video],
+            device=device,
+        )
+        save_data_compressed(object_flow_file, flow_traj_data[0])
 
-            # save renders as png files
-            for indx, render in enumerate(renders):
-                render.savefig(new_traj_dir / "flow_visualization_all.png")
+        # save renders as png files
+        for indx, render in enumerate(renders):
+            render.savefig(new_traj_dir / "flow_visualization_all.png")
 
-        if not point_tracking_file.exists():
+        # if not point_tracking_file.exists():
             # if cfg.flow.queries:
             #     queries = np.array(cfg.flow.queries)
             # else:
             #     queries = None
 
-            h, w = video.shape[1], video.shape[2]  # 1080, 1920
+        h, w = video.shape[1], video.shape[2]  # 1080, 1920
 
-            if "hand" not in data_dir.name:
-                # queries = np.array([[0, 561, 282]])
-                queries = np.array([[0, 448, 272]])  # post cropping
-            else:
-                # Calculate target height for 1920 width to match 480:640 aspect ratio
-                # 640/480 = 1920/target_h
-                # We need this for processing videos recorded on the iphone
-                target_h = int(1920 * (480 / 640))  # = 1440
-                # Calculate padding needed
-                pad_h = target_h - h  # 1440 - 1080 = 360
-                pad_top = pad_h // 2  # 180
-                pad_bottom = pad_h - pad_top  # 180
+        if "hand" not in data_dir.name:
+            # queries = np.array([[0, 561, 282]])
+            queries = np.array([[0, 448, 272]])  # post cropping
+        else:
+            # Calculate target height for 1920 width to match 480:640 aspect ratio
+            # 640/480 = 1920/target_h
+            # We need this for processing videos recorded on the iphone
+            # target_h = int(1920 * (480 / 640))  # = 1440
+            # # Calculate padding needed
+            # pad_h = target_h - h  # 1440 - 1080 = 360
+            # pad_top = pad_h // 2  # 180
+            # pad_bottom = pad_h - pad_top  # 180
 
-                # Add padding to top and bottom (black padding)
-                video = np.pad(
-                    video,
-                    (
-                        (0, 0),  # time dimension
-                        (pad_top, pad_bottom),  # height dimension
-                        (0, 0),  # width dimension
-                        (0, 0),
-                    ),  # channels
-                    mode="constant",
-                    constant_values=0,
-                )
+            # # Add padding to top and bottom (black padding)
+            # video = np.pad(
+            #     video,
+            #     (
+            #         (0, 0),  # time dimension
+            #         (pad_top, pad_bottom),  # height dimension
+            #         (0, 0),  # width dimension
+            #         (0, 0),
+            #     ),  # channels
+            #     mode="constant",
+            #     constant_values=0,
+            # )
 
-                # take a middle frame
-                # hopefully the hand is visible from this frame
-                # and get the center of the hand using molmo
-                query_frame = video[len(video) // 2]
-                query_frame = Image.fromarray(query_frame)
-                center_of_hand = get_center_of_hand(processor, molmo, query_frame)
+            # take a middle frame
+            # hopefully the hand is visible from this frame
+            # and get the center of the hand using molmo
+            query_frame = video[len(video) // 2]
+            query_frame = Image.fromarray(query_frame)
+            center_of_hand = get_center_of_hand(processor, molmo, query_frame)
 
-                query_frame_file = new_traj_dir / "query_frame.png"
-                # plot the center of the hand
-                draw = ImageDraw.Draw(query_frame)
-                draw.circle((center_of_hand[0], center_of_hand[1]), 20, fill="red")
-                query_frame.save(query_frame_file)
+            query_frame_file = new_traj_dir / "query_frame.png"
+            # plot the center of the hand
+            draw = ImageDraw.Draw(query_frame)
+            draw.circle((center_of_hand[0], center_of_hand[1]), 20, fill="red")
+            query_frame.save(query_frame_file)
 
-                queries = np.array(
-                    [[len(video) // 2, center_of_hand[0], center_of_hand[1]]]
-                )
-
-            flow_traj_data, renders = compute_flow_features(
-                image_predictor=image_predictor,
-                cotracker=cotracker,
-                text=cfg.flow.text_prompt,
-                queries=queries,
-                grounding_model_id=cfg.flow.grounding_model_id,
-                videos=[video],
-                device=device,
+            queries = np.array(
+                [[len(video) // 2, center_of_hand[0], center_of_hand[1]]]
             )
-            save_data_compressed(point_tracking_file, flow_traj_data[0])
 
-            # save renders as png files
-            for indx, render in enumerate(renders):
-                render.savefig(new_traj_dir / "flow_visualization_query.png")
+        flow_traj_data, renders = compute_flow_features(
+            image_predictor=image_predictor,
+            cotracker=cotracker,
+            text=cfg.flow.text_prompt,
+            queries=queries,
+            grounding_model_id=cfg.flow.grounding_model_id,
+            videos=[video],
+            device=device,
+        )
+        save_data_compressed(point_tracking_file, flow_traj_data[0])
+
+        # save renders as png files
+        for indx, render in enumerate(renders):
+            render.savefig(new_traj_dir / "flow_visualization_query.png")
 
 
 @hydra.main(version_base=None, config_name="convert_to_tfds", config_path="../../cfg")

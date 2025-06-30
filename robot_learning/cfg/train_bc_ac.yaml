@@ -1,15 +1,18 @@
-num_updates: 20_000
+name: bc_ac
+
+num_updates: 50_000
 log_terminal_every: 1000 
 run_eval_rollouts: False
 log_rollout_videos: False
 
 use_separate_gripper: True
+use_lang_embeds: False
 gripper_pos_weight: 0.1
 
 data: 
   data_type: n_step
   seq_len: 5  # chunk size to predict at once
-  batch_size: 64
+  batch_size: 256
 
 model:
   embedding_model: resnet18

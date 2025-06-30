@@ -12,7 +12,7 @@ num_trajs: -1
 num_examples: -1
 
 # percent of trajectories to use for training
-train_frac: 0.9
+train_frac: 0.98
 
 image_obs: ${env.image_obs}
 image_shape: ${env.image_shape}

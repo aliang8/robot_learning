@@ -109,6 +109,7 @@ class BCTrainer(OfflineTrainer):
 
         # Get loss configuration
         self.use_separate_gripper = getattr(self.cfg, "use_separate_gripper", False)
+        self.use_lang_embeds = getattr(self.cfg, "use_lang_embeds", False)
         self.gripper_dim = getattr(self.cfg, "gripper_dim", -1)  # default to last dim
 
         if self.use_separate_gripper:
@@ -191,6 +192,9 @@ class BCTrainer(OfflineTrainer):
         model_inputs = {k: getattr(batch, k) for k in self.cfg.model.input_modalities}
         model_inputs["states"] = states.float()
         model_inputs["timesteps"] = batch.timestep
+
+        if self.use_lang_embeds and "lang_embeds" in batch:
+            model_inputs["lang_embeds"] = batch.lang_embeds.float()
 
         action_preds = self.model(model_inputs)
 

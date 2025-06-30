@@ -65,6 +65,9 @@ def raw_data_to_tfds(
     embedding_model: str,
     resnet_feature_map_layer: str = "avgpool",
     flow_suffix: str = "all",
+    segments: List[List[int]] = None,
+    costs: List[float] = None,
+    save_lang_embeds: bool = False,
 ):
     num_transitions = 0
 
@@ -73,14 +76,12 @@ def raw_data_to_tfds(
     traj_dir = traj_dirs[0]
     for dat_file in Path(traj_dir).glob("*.dat"):
         if "images" in dat_file.name and "processed" not in dat_file.name:
-            available_cameras.append(
-                dat_file.name.split("_images")[0].replace(".dat", "")
-            )
+            available_cameras.append(dat_file.name.split("_images")[0])
 
     log(f"Available cameras: {available_cameras}", "yellow")
 
     processed_trajs = []
-    for traj_dir in tqdm.tqdm(traj_dirs, desc="Loading trajectories"):
+    for i, traj_dir in tqdm.tqdm(enumerate(traj_dirs), desc="Loading trajectories"):
         traj_dir = Path(traj_dir)
         traj_data = load_data_compressed(traj_dir / "traj_data.dat")
         num_transitions += len(traj_data["actions"])
@@ -89,16 +90,10 @@ def raw_data_to_tfds(
             if camera_type == "depth":
                 continue
 
-            if camera_type == "images":
-                images_file = traj_dir / "images.dat"
-                key = "images"
-            else:
-                images_file = traj_dir / f"{camera_type}_processed_images.dat"
-                key = f"{camera_type}_images"
-
+            images_file = traj_dir / f"{camera_type}_processed_images.dat"
             if images_file.exists():
                 images = load_data_compressed(images_file)
-                traj_data[key] = images
+                traj_data[f"{camera_type}_images"] = images
 
             if "resnet" in embedding_model:
                 img_embeds_file = (
@@ -109,23 +104,32 @@ def raw_data_to_tfds(
                 img_embeds_file = (
                     traj_dir / f"{camera_type}_img_embeds_{embedding_model}.dat"
                 )
-
-            if camera_type == "images":
-                img_embeds_file = Path(
-                    str(img_embeds_file).replace(f"{camera_type}_", "")
-                )
-                key = "images_embeds"
-            else:
-                key = f"{camera_type}_images_embeds"
-
             if img_embeds_file.exists():
                 img_embeds = load_data_compressed(img_embeds_file)
-                traj_data[key] = img_embeds
+                traj_data[f"{camera_type}_images_embeds"] = img_embeds
 
         flow_file = traj_dir / f"2d_flow_{flow_suffix}.dat"
         if flow_file.exists():
             flow_data = load_data_compressed(flow_file)
             traj_data.update(flow_data)
+
+        # Add costs if provided
+        if costs is not None:
+            traj_data["costs"] = np.full(len(traj_data["actions"]), costs[i])
+
+        if save_lang_embeds:
+            lang_embeds_file = traj_dir / "lang_embedding.dat"
+            if lang_embeds_file.exists():
+                lang_embeds = load_data_compressed(lang_embeds_file)
+                traj_data["lang_embeds"] = lang_embeds
+
+        if segments is not None:
+            # Filter trajectory data based on segments
+            traj_data = {
+                k: v[segments[i][0] : segments[i][1]]
+                for k, v in traj_data.items()
+                # if isinstance(v, np.ndarray)
+            }
 
         log("=" * 100)
         for k, v in traj_data.items():
@@ -146,8 +150,7 @@ def raw_data_to_tfds(
 
     log(f"Total number of transitions: {num_transitions} collected", "green")
     save_dataset(processed_trajs, save_file)
-
-
+    
 def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
     """Save trajectory data as TFDS."""
     log(f"Saving dataset to: {save_file}", "green")
@@ -178,14 +181,12 @@ def save_dataset(trajectories, save_file: Path, save_imgs: bool = False):
 
 
 def save_data_compressed(path, data):
-    log(f"Saving to {path}", "yellow")
     with open(path, "wb") as f:
         compressed_data = blosc.compress(pkl.dumps(data))
         f.write(compressed_data)
 
 
 def load_data_compressed(path):
-    log(f"Loading from {path}", "yellow")
     with open(path, "rb") as f:
         compressed_data = f.read()
         data = pkl.loads(blosc.decompress(compressed_data))

@@ -22,7 +22,6 @@ def fix_ds_name(ds_name: List[str], dataset_name: str, dataset_split: List[int])
         "absolute": "A",
         "close_drawer": "close-d",
     }
-
     # shorten the dataset names
     for name in ds_name:
         shortened_name = name.split("/")[-1]

@@ -22,6 +22,7 @@ def main(cfg):
     )
     data_dir = Path(cfg.data_dir)
     processed_traj_dirs = list((Path(data_dir) / "processed_trajs").glob("traj_*"))
+    # processed_traj_dirs = list((Path(data_dir) / "subtraj_data").glob("traj_*"))
     raw_data_to_tfds(
         processed_traj_dirs,
         save_file=save_file,
